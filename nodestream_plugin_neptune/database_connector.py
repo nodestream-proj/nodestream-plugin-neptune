@@ -1,5 +1,3 @@
-import boto3
-
 from nodestream.databases.copy import TypeRetriever
 from nodestream.databases.database_connector import QueryExecutor, DatabaseConnector
 from .ingest_query_builder import NeptuneDBIngestQueryBuilder
@@ -11,7 +9,7 @@ class NeptuneDatabaseConnector(DatabaseConnector, alias="neptune"):
         cls,
         host: str,
         region: str,
-        database_name: str = "neptunedb",
+        database_name: str = "neptune",
         **kwargs
     ):
         # Make this use boto3
