@@ -21,19 +21,11 @@ from nodestream.schema.schema import GraphObjectType
 from nodestream.databases.query_executor import OperationOnNodeIdentity, OperationOnRelationshipIdentity
 from .query import Query, QueryBatch
 
-PROPERTIES_PARAM_NAME = "properties"
-ADDITIONAL_LABELS_PARAM_NAME = "additional_labels"
 GENERIC_NODE_REF_NAME = "node"
 FROM_NODE_REF_NAME = "from_node"
-FROM_NODE_PROPS_REF = {"from_node": "from_ref_props"}
-FROM_NODE_PROPS_REF_STR = str(FROM_NODE_PROPS_REF)
 TO_NODE_REF_NAME = "to_node"
-TO_NODE_PROPS_REF = {"to_node": "to_ref_props"}
-TO_NODE_PROPS_REF_STR = str(TO_NODE_PROPS_REF)
 RELATIONSHIP_REF_NAME = "rel"
 PARAMETER_CORRECTION_REGEX = re.compile(r"\"(params.__\w+)\"")
-DELETE_NODE_QUERY = "MATCH (n) WHERE id(n) = id DETACH DELETE n"
-DELETE_REL_QUERY = "MATCH ()-[r]->() WHERE id(r) = id DELETE r"
 
 
 def correct_parameters(f):
@@ -212,7 +204,7 @@ class NeptuneDBIngestQueryBuilder:
         params.update(self.generate_node_key_params(rel.from_node, FROM_NODE_REF_NAME))
         params.update(self.generate_node_key_params(rel.to_node, TO_NODE_REF_NAME))
         return params
-
+  
     def generate_batch_update_node_operation_batch(
         self,
         operation: OperationOnNodeIdentity,
