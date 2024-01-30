@@ -52,23 +52,43 @@ class NeptuneQueryExecutor(QueryExecutor):
         await self.execute(queries.as_query())
 
     async def upsert_key_index(self, index: KeyIndex):
+        # Not needed for Neptune
         pass
 
     async def upsert_field_index(self, index: FieldIndex):
+        # Not needed for Neptune
         pass
 
     async def perform_ttl_op(self, config: TimeToLiveConfiguration):
+        # TODO: Implement as appropriate
         pass
 
     async def execute_hook(self, hook: IngestionHook):
+        # TODO: Implement as appropriate
         pass
 
     def _split_parameters(self, parameters: list):
+        """
+        The intention is to split the parameters evenly so we can make multiple 
+        async batch inserts to Neptune. However, I did not notice any meaningful 
+        performance improvements. 
+
+        It could be that we are doing something incorrect, or that the input
+        size tested (1000 nodes, 2000 edges) weren't enough.
+        """
         params_count = len(parameters)
         if not self.async_partitions or params_count < self.async_partitions:
             partition_size = len(parameters)
         else:
             partition_size = math.floor(params_count/self.async_partitions)
+
+        """
+        From Dave we found that the sweet spot is around 100 - 200
+        per batch request. Though this is not a hard rule.
+
+        More investigation on performance is needed.
+        """
+        partition_size = 150
 
         for i in range(0, len(parameters), partition_size):
             yield parameters[i: i+partition_size]

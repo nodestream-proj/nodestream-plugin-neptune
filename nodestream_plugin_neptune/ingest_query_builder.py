@@ -137,7 +137,7 @@ class NeptuneDBIngestQueryBuilder:
 
         """
         At this time, Neptune doesn't support nested maps very well.
-        We get an error trying to reference an inner map. 
+        We get an error trying to reference an inner map in our openCypher query. 
         As such, __node_id has to be kept at the same level as other node
         properties. 
 
