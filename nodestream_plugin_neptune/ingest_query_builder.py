@@ -22,8 +22,8 @@ from nodestream.databases.query_executor import OperationOnNodeIdentity, Operati
 from .query import Query, QueryBatch
 
 GENERIC_NODE_REF_NAME = "node"
-FROM_NODE_REF_NAME = "from_node"
-TO_NODE_REF_NAME = "to_node"
+GENERIC_FROM_NODE_REF_NAME = "from_node"
+GENERIC_TO_NODE_REF_NAME = "to_node"
 RELATIONSHIP_REF_NAME = "rel"
 PARAMETER_CORRECTION_REGEX = re.compile(r"\"(params.__\w+)\"")
 
@@ -81,13 +81,13 @@ def _make_relationship(
     match_rel_query = (
         QueryBuilder()
         .merge()
-        .node(ref_name=FROM_NODE_REF_NAME)
+        .node(ref_name=GENERIC_FROM_NODE_REF_NAME)
         .related_to(
             ref_name=RELATIONSHIP_REF_NAME,
             properties=keys,
             label=rel_identity.type,
         )
-        .node(ref_name=TO_NODE_REF_NAME)
+        .node(ref_name=GENERIC_TO_NODE_REF_NAME)
     )
 
     return match_rel_query
@@ -164,18 +164,18 @@ class NeptuneDBIngestQueryBuilder:
         self, operation: OperationOnRelationshipIdentity
     ) -> str:
         """Generate a query to update a relationship in the database given a relationship operation."""
-        from_node_id_param_name = generate_id_param_name(FROM_NODE_REF_NAME)
+        from_node_id_param_name = generate_id_param_name(GENERIC_FROM_NODE_REF_NAME)
         match_from_node_segment = _match_node(
             operation.from_node,
             from_node_id_param_name,
-            FROM_NODE_REF_NAME
+            GENERIC_FROM_NODE_REF_NAME
         )
 
-        to_node_id_param_name = generate_id_param_name(TO_NODE_REF_NAME)
+        to_node_id_param_name = generate_id_param_name(GENERIC_TO_NODE_REF_NAME)
         match_to_node_segment = _match_node(
             operation.to_node,
             to_node_id_param_name,
-            TO_NODE_REF_NAME
+            GENERIC_TO_NODE_REF_NAME
         )
 
         match_to_node_segment = str(match_to_node_segment).replace("MATCH", ",")
@@ -201,8 +201,8 @@ class NeptuneDBIngestQueryBuilder:
         """Generate the parameters for a query to update a relationship in the database."""
 
         params = self.generate_update_rel_params(rel.relationship)
-        params.update(self.generate_node_key_params(rel.from_node, FROM_NODE_REF_NAME))
-        params.update(self.generate_node_key_params(rel.to_node, TO_NODE_REF_NAME))
+        params.update(self.generate_node_key_params(rel.from_node, GENERIC_FROM_NODE_REF_NAME))
+        params.update(self.generate_node_key_params(rel.to_node, GENERIC_TO_NODE_REF_NAME))
         return params
   
     def generate_batch_update_node_operation_batch(
