@@ -71,28 +71,16 @@ def _match_node(
     )
 
 @cache
-def _generate_node_id_property(node_id_param_name: str) -> dict:
-    return {"`~id`": f"param.{node_id_param_name}"}
-
-@cache
-def _merge_node(
-    node_operation: OperationOnNodeIdentity, name=GENERIC_NODE_REF_NAME
-) -> NodeAfterMergeAvailable:
-    node_id_param_name = generate_id_param_name(GENERIC_NODE_REF_NAME)
-    properties = generate_properties_set_with_prefix(
-        node_operation.node_identity.keys, name
-    )
-    return (
-        QueryBuilder()
-        .merge()
-        .node(
-            labels=node_operation.node_identity.type,
-            ref_name=name,
-            properties=_generate_node_id_property(node_id_param_name),
-            escape=False
+def _merge_node(labels: str, node_id_param_name: str, name=GENERIC_NODE_REF_NAME) -> NodeAfterMergeAvailable:
+    return (QueryBuilder()
+            .merge()
+            .node(
+                labels=labels,
+                ref_name=name,
+                properties={"`~id`": f"param.{node_id_param_name}"},
+                escape=False
+            )
         )
-    )
-
 
 @cache
 def _make_relationship(
@@ -115,10 +103,15 @@ def _make_relationship(
 
 
 def _to_string_values(props: dict):
-    # Convert unsupported values to string
+    # Convert unsupported values to string.
+    # There must be better ways to handle these.
+    # It's here only for the PoC.
     for k, v in props.items():
+        # Neptune can handles datetime type
+        # see: https://docs.aws.amazon.com/neptune/latest/userguide/feature-opencypher-compliance.html#opencypher-compliance-differences
         if isinstance(v, Timestamp):
             props[k] = str(v)
+        # Could the nodestream filter/transforms these values else where?
         elif not v:
             props[k] = 'None'
         elif isinstance(v, numbers.Number) and math.isnan(v):
@@ -136,25 +129,16 @@ class NeptuneDBIngestQueryBuilder:
         ref: str,
     ) -> str:
         """Generate a query to update a node in the database given a node type and a match strategy."""
-        labels = [
+        labels = ":".join([
             operation.node_identity.type,
             *operation.node_identity.additional_types,
-        
-        ]
+        ])
         node_id_param_name = generate_id_param_name(GENERIC_NODE_REF_NAME)
+        merge_node = _merge_node(labels, node_id_param_name, GENERIC_NODE_REF_NAME)
 
-        merge_node = (
-            QueryBuilder()
-            .merge()
-            .node(
-                labels=labels,
-                ref_name=ref,
-                properties={"`~id`": f"param.{node_id_param_name}"},
-                escape=False
-            )
-        )
-        on_create = f"ON CREATE SET {GENERIC_NODE_REF_NAME} = param"
-        on_match = f"ON MATCH SET {GENERIC_NODE_REF_NAME} += param"
+        # removeKeyFromMap is a Neptune specific function. 
+        on_create = f"""ON CREATE SET {GENERIC_NODE_REF_NAME} = removeKeyFromMap(param, "{node_id_param_name}")"""
+        on_match = f"""ON MATCH SET {GENERIC_NODE_REF_NAME} += removeKeyFromMap(param, "{node_id_param_name}")"""
         query = f"{merge_node} {on_create} {on_match}"
         return query
 
@@ -168,7 +152,9 @@ class NeptuneDBIngestQueryBuilder:
 
     def generate_node_key_params(self, node: Node, name=GENERIC_NODE_REF_NAME) -> dict:
         """Generate the parameters for a query to update a node in the database."""
+
         # Todo: What if no keys were given? Maybe let neptune decides.
+        # On uniqueness and keys in Neptune, see Schema Constraints in https://docs.aws.amazon.com/neptune/latest/userguide/migration-compatibility.html
         composite_key = "_".join([str(node.key_values[k]) for k in node.key_values])
         composite_key = f"{node.type}_{composite_key}"
         return {generate_prefixed_param_name("id", name): composite_key}
