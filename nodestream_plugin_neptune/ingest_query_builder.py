@@ -60,10 +60,9 @@ def generate_properties_set_with_prefix(properties: Iterable[str], prefix: str):
 
 @cache
 def _match_node(
-    node_operation: OperationOnNodeIdentity, name=GENERIC_NODE_REF_NAME
+    node_operation: OperationOnNodeIdentity, node_id_param_name: str, name=GENERIC_NODE_REF_NAME
 ) -> NodeAvailable:
     identity = node_operation.node_identity
-    node_id_param_name = generate_id_param_name(name)
     return (
         QueryBuilder()
         .match()
@@ -136,7 +135,15 @@ class NeptuneDBIngestQueryBuilder:
         node_id_param_name = generate_id_param_name(GENERIC_NODE_REF_NAME)
         merge_node = _merge_node(labels, node_id_param_name, GENERIC_NODE_REF_NAME)
 
-        # removeKeyFromMap is a Neptune specific function. 
+        """
+        At this time, Neptune doesn't support nested maps very well.
+        We get an error trying to reference an inner map. 
+        As such, __node_id has to be kept at the same level as other node
+        properties. 
+
+        removeKeyFromMap is a Neptune specific function. We use it to remove 
+         __node_id before setting node's properties
+        """
         on_create = f"""ON CREATE SET {GENERIC_NODE_REF_NAME} = removeKeyFromMap(param, "{node_id_param_name}")"""
         on_match = f"""ON MATCH SET {GENERIC_NODE_REF_NAME} += removeKeyFromMap(param, "{node_id_param_name}")"""
         query = f"{merge_node} {on_create} {on_match}"
@@ -165,23 +172,29 @@ class NeptuneDBIngestQueryBuilder:
         self, operation: OperationOnRelationshipIdentity
     ) -> str:
         """Generate a query to update a relationship in the database given a relationship operation."""
-
+        from_node_id_param_name = generate_id_param_name(FROM_NODE_REF_NAME)
         match_from_node_segment = _match_node(
             operation.from_node,
+            from_node_id_param_name,
             FROM_NODE_REF_NAME
         )
 
+        to_node_id_param_name = generate_id_param_name(TO_NODE_REF_NAME)
         match_to_node_segment = _match_node(
             operation.to_node,
+            to_node_id_param_name,
             TO_NODE_REF_NAME
         )
+
         match_to_node_segment = str(match_to_node_segment).replace("MATCH", ",")
 
         merge_rel_segment = _make_relationship(operation.relationship_identity)
 
-        on_create = f"ON CREATE SET {RELATIONSHIP_REF_NAME} = param"
+        # At this time, Neptune doesn't support nested maps very well.
+        # See comments in generate_update_node_operation_query_statement()
+        on_create = f"""ON CREATE SET {RELATIONSHIP_REF_NAME} = removeKeyFromMap(removeKeyFromMap(param, "{from_node_id_param_name}"), "{to_node_id_param_name}")"""
 
-        on_match = f"ON MATCH SET {RELATIONSHIP_REF_NAME} += param"
+        on_match = f"""ON MATCH SET {RELATIONSHIP_REF_NAME} += removeKeyFromMap(removeKeyFromMap(param, "{from_node_id_param_name}"), "{to_node_id_param_name}")"""
 
         return f"{match_from_node_segment} {match_to_node_segment} {merge_rel_segment} {on_create} {on_match}"
 
