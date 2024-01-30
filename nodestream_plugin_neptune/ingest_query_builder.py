@@ -129,12 +129,14 @@ class NeptuneDBIngestQueryBuilder:
 
         """
         At this time, Neptune doesn't support nested maps very well.
-        We get an error trying to reference an inner map in our openCypher query. 
-        As such, __node_id has to be kept at the same level as other node
-        properties. 
+        We get an error trying to access inner maps in the parameters
+        of our openCypher query. 
+        
+        As such, node's properties and __node_id has to be kept at 
+        the same level.
 
-        removeKeyFromMap is a Neptune specific function. We use it to remove 
-         __node_id before setting node's properties
+        As a work around, we use removeKeyFromMap() to remove __node_id before 
+        setting node's properties. removeKeyFromMap() Neptune specific.
         """
         on_create = f"""ON CREATE SET {GENERIC_NODE_REF_NAME} = removeKeyFromMap(param, "{node_id_param_name}")"""
         on_match = f"""ON MATCH SET {GENERIC_NODE_REF_NAME} += removeKeyFromMap(param, "{node_id_param_name}")"""
