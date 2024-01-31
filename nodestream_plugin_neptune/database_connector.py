@@ -9,7 +9,6 @@ class NeptuneDatabaseConnector(DatabaseConnector, alias="neptune"):
         cls,
         host: str,
         region: str,
-        database_name: str = "neptune",
         **kwargs
     ):
         # Make this use boto3
