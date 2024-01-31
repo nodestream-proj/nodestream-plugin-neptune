@@ -1,7 +1,7 @@
 from typing import AsyncGenerator
 
 from nodestream.model import Node, PropertySet, Relationship, RelationshipWithNodes
-from .graph_objects import NeptuneNode, NeptuneRelationship
+from nodestream.model.graph_objects import Node, Relationship
 from nodestream.databases.copy import TypeRetriever
 from .database_connector import NeptuneDatabaseConnector
 from .extractor import NeptuneDBExtractor
@@ -21,7 +21,7 @@ class NeptuneDBTypeRetriever(TypeRetriever):
         self.connector = connector
 
     def map_neptune_node_to_nodestream_node(
-        self, node: NeptuneNode, type: str = None
+        self, node: Node, type: str = None
     ) -> Node:
         # NOTE: I don't think this will work in all cases.
         # But I think this will require shaking out in the future.
@@ -33,7 +33,7 @@ class NeptuneDBTypeRetriever(TypeRetriever):
         )
 
     def map_neptune_relationship_to_nodestream_relationship(
-        self, relationship: NeptuneRelationship
+        self, relationship: Relationship
     ) -> Relationship:
         return Relationship(
             type=relationship.type,
