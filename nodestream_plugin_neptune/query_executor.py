@@ -29,6 +29,7 @@ class NeptuneQueryExecutor(QueryExecutor):
         self.ingest_query_builder = ingest_query_builder
         self.logger = getLogger(self.__class__.__name__)
         self.async_partitions = async_partitions
+
     async def upsert_nodes_in_bulk_with_same_operation(
         self, operation: OperationOnNodeIdentity, nodes: Iterable[Node]
     ):
@@ -93,26 +94,31 @@ class NeptuneQueryExecutor(QueryExecutor):
         for i in range(0, len(parameters), partition_size):
             yield parameters[i: i+partition_size]
 
-    async def _make_request(self, query: Query, parameters: list):
+    async def query(self, query_stmt: str, parameters: list):
+        response = None
         async with self.session.create_client("neptunedata", region_name=self.region, endpoint_url=self.host) as client:
             try:
                 response = await client.execute_open_cypher_query(
-                    openCypherQuery=query.query_statement,
+                    openCypherQuery=query_stmt,
                     # Use json.dumps() to warp dict's key/values in double quotes.
                     parameters=json.dumps({"params": parameters})
                 )
 
                 code = response["ResponseMetadata"]["HTTPStatusCode"]
                 if code != 200:
-                    self.logger.error(f"Query `{query}` failed with response:\n{response}")
+                    self.logger.error(f"Query `{query_stmt}` failed with response:\n{response}")
                 
             except Exception:
-                self.logger.exception(f'Unexpected error for query: {query}.', stack_info=True)
+                self.logger.exception(f'Unexpected error for query: {query_stmt}.', stack_info=True)
+            
+        return response
 
     async def execute(self, query: Query, log_result: bool = False):
+        query_stmt = query.query_statement
         requests = (
-            self._make_request(query, parameters) 
+            self.query(query_stmt, parameters) 
             for parameters
             in self._split_parameters(query.parameters["params"])
         )
         await asyncio.gather(*requests)
+
