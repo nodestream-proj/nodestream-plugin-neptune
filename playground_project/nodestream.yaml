@@ -19,6 +19,5 @@ targets:
     uri: bolt://localhost:7688
   db-nept:
     database: neptune
-    database_name: neptune
     host: <your-neptune-host-url>
-    region: us-west-2
+    region: <your-neptune-region>

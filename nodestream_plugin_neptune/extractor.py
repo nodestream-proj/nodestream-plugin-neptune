@@ -5,7 +5,7 @@ import json
 
 from nodestream.pipeline.extractors import Extractor
 from .database_connector import NeptuneDatabaseConnector
-
+from .query_executor import NeptuneQueryExecutor
 
 class NeptuneDBExtractor(Extractor):
     @classmethod
@@ -37,18 +37,19 @@ class NeptuneDBExtractor(Extractor):
         # this class and move it to a GraphDatabaseExtractor class following the lead
         # we have of the writer class.
         offset = 0
-        should_continue = True
-        client = self.connector.client
+        executor: NeptuneQueryExecutor = self.connector.make_query_executor()
 
         params = dict(**self.parameters, limit=self.limit, offset=offset)
         self.logger.info(
             "Running query on Neptune Database",
             extra=dict(query=self.query, params=params),
         )
-        query_results = client.execute_open_cypher_query(
-            openCypherQuery = self.query,
-            parameters = json.dumps(params),
-        )
-        returned_records = list(query_results['results'])
+
+        response = await executor.query(self.query, json.dumps(params))
+
+        returned_records = []
+        if response:
+            returned_records = list(response['results'])
+
         for item in returned_records:
             yield item
