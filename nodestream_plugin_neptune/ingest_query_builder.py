@@ -26,6 +26,8 @@ GENERIC_FROM_NODE_REF_NAME = "from_node"
 GENERIC_TO_NODE_REF_NAME = "to_node"
 RELATIONSHIP_REF_NAME = "rel"
 PARAMETER_CORRECTION_REGEX = re.compile(r"\"(params.__\w+)\"")
+DELETE_NODE_QUERY = "MATCH (n) WHERE id(n) = id DETACH DELETE n"
+DELETE_REL_QUERY = "MATCH ()-[r]->() WHERE id(r) = id DELETE r"
 
 
 def correct_parameters(f):
@@ -38,8 +40,7 @@ def correct_parameters(f):
 
 
 def generate_prefixed_param_name(property_name: str, prefix: str) -> str:
-    return f"__{prefix}_{property_name}"
-
+    return f"__{prefix}_{property_name}" if prefix else property_name
 def generate_id_param_name(node_ref_name: str) -> str:
     return generate_prefixed_param_name("id", node_ref_name)
 
@@ -77,7 +78,7 @@ def _merge_node(labels: str, node_id_param_name: str, name=GENERIC_NODE_REF_NAME
 def _make_relationship(
     rel_identity: RelationshipIdentityShape
 ):
-    keys = generate_properties_set_with_prefix(rel_identity.keys, RELATIONSHIP_REF_NAME)
+    keys = generate_properties_set_with_prefix(rel_identity.keys, None)
     match_rel_query = (
         QueryBuilder()
         .merge()
@@ -86,6 +87,7 @@ def _make_relationship(
             ref_name=RELATIONSHIP_REF_NAME,
             properties=keys,
             label=rel_identity.type,
+            escape=False
         )
         .node(ref_name=GENERIC_TO_NODE_REF_NAME)
     )
@@ -236,10 +238,40 @@ class NeptuneDBIngestQueryBuilder:
             params
         )
 
-    def generate_ttl_match_query(self, config: TimeToLiveConfiguration) -> Query:
-        raise NotImplementedError
-
     def generate_ttl_query_from_configuration(
         self, config: TimeToLiveConfiguration
     ) -> Query:
-        raise NotImplementedError
+
+        earliest_allowed_time = datetime.utcnow() - timedelta(
+            hours=config.expiry_in_hours
+        )
+        params = {"earliest_allowed_time": earliest_allowed_time}
+        if config.custom_query is not None:
+            return Query(config.custom_query, params)
+
+        query_builder = QueryBuilder()
+        ref_name = "x"
+
+        if config.graph_object_type == GraphObjectType.NODE:
+            query_builder = query_builder.match().node(
+                labels=config.object_type, ref_name=ref_name
+            )
+        else:
+            query_builder = (
+                query_builder.match()
+                .node()
+                .related_to(label=config.object_type, ref_name=ref_name)
+                .node()
+            )
+
+        query_builder = query_builder.where_literal(
+            f"{ref_name}.last_ingested_at <= $earliest_allowed_time"
+        )
+
+        if config.graph_object_type == GraphObjectType.NODE:
+            query_builder = query_builder.detach_delete(ref_name)
+        else:
+            query_builder = query_builder.delete(ref_name)
+
+        return Query(str(query_builder), params)
+

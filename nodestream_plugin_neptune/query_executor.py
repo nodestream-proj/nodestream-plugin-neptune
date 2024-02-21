@@ -38,7 +38,7 @@ class NeptuneQueryExecutor(QueryExecutor):
                 operation, nodes
             )
         )
-        await self.execute(batched_query.as_query())
+        await self.execute_batch(batched_query)
 
     async def upsert_relationships_in_bulk_of_same_operation(
         self,
@@ -50,7 +50,7 @@ class NeptuneQueryExecutor(QueryExecutor):
                 shape, relationships
             )
         )
-        await self.execute(queries.as_query())
+        await self.execute_batch(queries)
 
     async def upsert_key_index(self, index: KeyIndex):
         # Not needed for Neptune
@@ -61,12 +61,12 @@ class NeptuneQueryExecutor(QueryExecutor):
         pass
 
     async def perform_ttl_op(self, config: TimeToLiveConfiguration):
-        # TODO: Implement as appropriate
-        pass
+        query = self.ingest_query_builder.generate_ttl_query_from_configuration(config)
+        await self.execute(query)
 
     async def execute_hook(self, hook: IngestionHook):
-        # TODO: Implement as appropriate
-        pass
+        query_string, params = hook.as_cypher_query_and_parameters()
+        await self.execute(Query(query_string, params))
 
     def _split_parameters(self, parameters: list):
         """
@@ -92,7 +92,7 @@ class NeptuneQueryExecutor(QueryExecutor):
         partition_size = 150
 
         for i in range(0, len(parameters), partition_size):
-            yield parameters[i: i+partition_size]
+            yield {"params": parameters[i: i+partition_size]}
 
     async def query(self, query_stmt: str, parameters: list):
         response = None
@@ -101,7 +101,7 @@ class NeptuneQueryExecutor(QueryExecutor):
                 response = await client.execute_open_cypher_query(
                     openCypherQuery=query_stmt,
                     # Use json.dumps() to warp dict's key/values in double quotes.
-                    parameters=json.dumps({"params": parameters})
+                    parameters = json.dumps(parameters)
                 )
 
                 code = response["ResponseMetadata"]["HTTPStatusCode"]
@@ -114,11 +114,49 @@ class NeptuneQueryExecutor(QueryExecutor):
         return response
 
     async def execute(self, query: Query, log_result: bool = False):
+        self.logger.debug(
+            "Executing Cypher Query to Neptune",
+            extra={
+                "query": query.query_statement,
+                "uri": self.host,
+            },
+        )
+        query_stmt = query.query_statement
+
+        # TODO: Replace with proper datatype handling
+        query.parameters['earliest_allowed_time'] = str(query.parameters['earliest_allowed_time'])
+
+        result = await asyncio.gather(self.query(query_stmt, query.parameters))
+
+        if log_result:
+            for record in result.records:
+                self.logger.info(
+                    "Gathered Query Results",
+                    extra=dict(**record, query=query.query_statement),
+                )
+
+    async def execute_batch(self, query_batch: QueryBatch, log_result: bool = False):
+        query:Query = query_batch.as_query()
+
+        self.logger.debug(
+            "Executing Cypher Query to Neptune",
+            extra={
+                "query": query.query_statement,
+                "uri": self.host,
+            },
+        )
         query_stmt = query.query_statement
         requests = (
-            self.query(query_stmt, parameters) 
+            self.query(query_stmt, parameters)
             for parameters
             in self._split_parameters(query.parameters["params"])
         )
-        await asyncio.gather(*requests)
 
+        result = await asyncio.gather(*requests)
+
+        if log_result:
+            for record in result.records:
+                self.logger.info(
+                    "Gathered Query Results",
+                    extra=dict(**record, query=query.query_statement),
+                )

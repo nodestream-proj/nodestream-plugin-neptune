@@ -16,10 +16,6 @@ class Query:
     def from_statement(cls, statement: str):
         return cls(query_statement=statement, parameters={})
 
-    def feed_batched_query(self, batched_query: str) -> "Query":
-        """Feed the results of the the query into another query that will be executed in batches."""
-        pass
-
 
 @dataclass(slots=True, frozen=True)
 class QueryBatch:
