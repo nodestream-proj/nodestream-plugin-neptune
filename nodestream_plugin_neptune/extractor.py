@@ -5,7 +5,7 @@ import json
 
 from nodestream.pipeline.extractors import Extractor
 from .database_connector import NeptuneDatabaseConnector
-from .query_executor import NeptuneQueryExecutor
+from .query_executor import NeptuneDBQueryExecutor
 
 class NeptuneDBExtractor(Extractor):
     @classmethod
@@ -37,7 +37,7 @@ class NeptuneDBExtractor(Extractor):
         # this class and move it to a GraphDatabaseExtractor class following the lead
         # we have of the writer class.
         offset = 0
-        executor: NeptuneQueryExecutor = self.connector.make_query_executor()
+        executor: NeptuneDBQueryExecutor = self.connector.make_query_executor()
 
         params = dict(**self.parameters, limit=self.limit, offset=offset)
         self.logger.info(

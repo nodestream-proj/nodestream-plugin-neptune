@@ -18,6 +18,10 @@ targets:
     password: neo4j123
     uri: bolt://localhost:7688
   db-nept:
-    database: neptune
-    host: <your-neptune-host-url>
-    region: <your-neptune-region>
+    database: neptune_db
+    host: https://<NEPTUNE_ENDPOINT>:<PORT>
+    region: <AWS_REGION>
+  db-p8:
+    database: neptune_analytics
+    graph_id: <GRAPH_IDENTIFIER>
+    region: <AWS_REGION>
