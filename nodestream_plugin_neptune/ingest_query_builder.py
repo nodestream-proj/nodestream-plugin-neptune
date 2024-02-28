@@ -17,7 +17,7 @@ from nodestream.model import (
     RelationshipWithNodes,
     TimeToLiveConfiguration,
 )
-from nodestream.schema.schema import GraphObjectType
+from nodestream.schema.state import GraphObjectType
 from nodestream.databases.query_executor import OperationOnNodeIdentity, OperationOnRelationshipIdentity
 from .query import Query, QueryBatch
 

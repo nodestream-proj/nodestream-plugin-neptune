@@ -45,3 +45,6 @@ class NeptuneDatabaseConnector(DatabaseConnector, alias="neptune"):
         from .type_retriever import NeptuneDBTypeRetriever
 
         return NeptuneDBTypeRetriever(self)
+
+    def make_migrator(self) -> TypeRetriever:
+        raise NotImplementedError

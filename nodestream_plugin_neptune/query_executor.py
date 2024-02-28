@@ -1,7 +1,6 @@
 from logging import getLogger
 from typing import Iterable
 from nodestream.model import IngestionHook, Node, RelationshipWithNodes, TimeToLiveConfiguration
-from nodestream.schema.indexes import FieldIndex, KeyIndex
 from nodestream.databases.query_executor import (
     OperationOnNodeIdentity,
     OperationOnRelationshipIdentity,
@@ -51,14 +50,6 @@ class NeptuneQueryExecutor(QueryExecutor):
             )
         )
         await self.execute_batch(queries)
-
-    async def upsert_key_index(self, index: KeyIndex):
-        # Not needed for Neptune
-        pass
-
-    async def upsert_field_index(self, index: FieldIndex):
-        # Not needed for Neptune
-        pass
 
     async def perform_ttl_op(self, config: TimeToLiveConfiguration):
         query = self.ingest_query_builder.generate_ttl_query_from_configuration(config)
