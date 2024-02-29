@@ -18,7 +18,7 @@ targets:
     password: neo4j123
     uri: bolt://localhost:7688
   db-nept:
-    database: neptune_db
+    database: neptune
     host: https://<NEPTUNE_ENDPOINT>:<PORT>
     region: <AWS_REGION>
   db-p8:

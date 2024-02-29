@@ -5,7 +5,7 @@ from nodestream.databases.database_connector import (DatabaseConnector,
 from .ingest_query_builder import NeptuneDBIngestQueryBuilder
 
 
-class NeptuneDatabaseConnector(DatabaseConnector, alias="neptune_db"):
+class NeptuneDatabaseConnector(DatabaseConnector, alias="neptune"):
     @classmethod
     def from_file_data(cls, host: str, region: str, **kwargs):
         # Make this use boto3
