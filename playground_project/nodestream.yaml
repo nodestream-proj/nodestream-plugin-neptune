@@ -21,7 +21,7 @@ targets:
     database: neptune
     host: https://<NEPTUNE_ENDPOINT>:<PORT>
     region: <AWS_REGION>
-  db-p8:
+  db-nept-two:
     database: neptune_analytics
     graph_id: <GRAPH_IDENTIFIER>
     region: <AWS_REGION>
