@@ -1,25 +1,25 @@
-from logging import getLogger
-from typing import Iterable
-from nodestream.model import IngestionHook, Node, RelationshipWithNodes, TimeToLiveConfiguration
-from nodestream.databases.query_executor import (
-    OperationOnNodeIdentity,
-    OperationOnRelationshipIdentity,
-    QueryExecutor,
-)
-from .ingest_query_builder import NeptuneDBIngestQueryBuilder
-from .query import Query, QueryBatch
-from aiobotocore.session import get_session
 import asyncio
 import math
+from logging import getLogger
+from typing import Iterable
+
+from aiobotocore.session import get_session
+from nodestream.databases.query_executor import (
+    OperationOnNodeIdentity, OperationOnRelationshipIdentity, QueryExecutor)
+from nodestream.model import (IngestionHook, Node, RelationshipWithNodes,
+                              TimeToLiveConfiguration)
+
+from .ingest_query_builder import NeptuneDBIngestQueryBuilder
+from .query import Query, QueryBatch
 
 
 class NeptuneAnalyticsQueryExecutor(QueryExecutor):
     def __init__(
-            self,
-            region,
-            graph_id,
-            ingest_query_builder: NeptuneDBIngestQueryBuilder,
-            async_partitions=50
+        self,
+        region,
+        graph_id,
+        ingest_query_builder: NeptuneDBIngestQueryBuilder,
+        async_partitions=50,
     ) -> None:
         self.session = get_session()
         self.region = region
@@ -29,7 +29,7 @@ class NeptuneAnalyticsQueryExecutor(QueryExecutor):
         self.async_partitions = async_partitions
 
     async def upsert_nodes_in_bulk_with_same_operation(
-            self, operation: OperationOnNodeIdentity, nodes: Iterable[Node]
+        self, operation: OperationOnNodeIdentity, nodes: Iterable[Node]
     ):
         batched_query = (
             self.ingest_query_builder.generate_batch_update_node_operation_batch(
@@ -39,9 +39,9 @@ class NeptuneAnalyticsQueryExecutor(QueryExecutor):
         await self.execute_batch(batched_query)
 
     async def upsert_relationships_in_bulk_of_same_operation(
-            self,
-            shape: OperationOnRelationshipIdentity,
-            relationships: Iterable[RelationshipWithNodes],
+        self,
+        shape: OperationOnRelationshipIdentity,
+        relationships: Iterable[RelationshipWithNodes],
     ):
         queries = (
             self.ingest_query_builder.generate_batch_update_relationship_query_batch(
@@ -60,9 +60,9 @@ class NeptuneAnalyticsQueryExecutor(QueryExecutor):
 
     def _split_parameters(self, parameters: list):
         """
-        The intention is to split the parameters evenly so we can make multiple 
-        async batch inserts to Neptune. However, I did not notice any meaningful 
-        performance improvements. 
+        The intention is to split the parameters evenly so we can make multiple
+        async batch inserts to Neptune. However, I did not notice any meaningful
+        performance improvements.
 
         It could be that we are doing something incorrect, or that the input
         size tested (1000 nodes, 2000 edges) weren't enough.
@@ -82,7 +82,7 @@ class NeptuneAnalyticsQueryExecutor(QueryExecutor):
         partition_size = 150
 
         for i in range(0, len(parameters), partition_size):
-            yield {"params": parameters[i: i + partition_size]}
+            yield {"params": parameters[i : i + partition_size]}
 
     async def query(self, query_stmt: str, parameters: list):
         response = None
@@ -91,16 +91,20 @@ class NeptuneAnalyticsQueryExecutor(QueryExecutor):
                 response = await client.execute_query(
                     graphIdentifier=self.graph_id,
                     queryString=query_stmt,
-                    language='OPEN_CYPHER',
-                    parameters=parameters
+                    language="OPEN_CYPHER",
+                    parameters=parameters,
                 )
 
                 code = response["ResponseMetadata"]["HTTPStatusCode"]
                 if code != 200:
-                    self.logger.error(f"Query `{query_stmt}` failed with response:\n{response}")
+                    self.logger.error(
+                        f"Query `{query_stmt}` failed with response:\n{response}"
+                    )
 
             except Exception as e:
-                self.logger.exception(f'Unexpected error for query: {query_stmt}.', e, stack_info=True)
+                self.logger.exception(
+                    f"Unexpected error for query: {query_stmt}.", e, stack_info=True
+                )
 
         return response
 
@@ -115,12 +119,12 @@ class NeptuneAnalyticsQueryExecutor(QueryExecutor):
         query_stmt = query.query_statement
 
         # TODO: Replace with proper datatype handling
-        query.parameters['earliest_allowed_time'] = str(query.parameters['earliest_allowed_time'])
+        query.parameters["earliest_allowed_time"] = str(
+            query.parameters["earliest_allowed_time"]
+        )
 
         requests = (
-            self.query(query_stmt, parameters)
-            for parameters
-            in [query.parameters]
+            self.query(query_stmt, parameters) for parameters in [query.parameters]
         )
 
         result = await asyncio.gather(*requests)
@@ -146,8 +150,7 @@ class NeptuneAnalyticsQueryExecutor(QueryExecutor):
 
         requests = (
             self.query(query_stmt, parameters)
-            for parameters
-            in self._split_parameters(query.parameters["params"])
+            for parameters in self._split_parameters(query.parameters["params"])
         )
 
         result = await asyncio.gather(*requests)

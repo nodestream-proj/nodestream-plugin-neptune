@@ -1,8 +1,10 @@
 from typing import AsyncGenerator
 
-from nodestream.model import Node, PropertySet, Relationship, RelationshipWithNodes
-from nodestream.model.graph_objects import Node, Relationship
 from nodestream.databases.copy import TypeRetriever
+from nodestream.model import (Node, PropertySet, Relationship,
+                              RelationshipWithNodes)
+from nodestream.model.graph_objects import Node, Relationship
+
 from .database_connector import NeptuneDatabaseConnector
 from .extractor import NeptuneDBExtractor
 
@@ -16,13 +18,12 @@ MATCH (a)-[r:{type}]->(b)
 RETURN a, r, b SKIP $offset LIMIT $limit
 """
 
+
 class NeptuneDBTypeRetriever(TypeRetriever):
     def __init__(self, connector: NeptuneDatabaseConnector) -> None:
         self.connector = connector
 
-    def map_neptune_node_to_nodestream_node(
-        self, node: Node, type: str = None
-    ) -> Node:
+    def map_neptune_node_to_nodestream_node(self, node: Node, type: str = None) -> Node:
         # NOTE: I don't think this will work in all cases.
         # But I think this will require shaking out in the future.
         type = type or next(iter(node.labels))

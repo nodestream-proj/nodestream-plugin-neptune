@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-
 UNWIND_COMMIT_QUERY = """
 UNWIND $params as param
 """

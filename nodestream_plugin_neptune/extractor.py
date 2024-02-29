@@ -1,11 +1,12 @@
+import json
 from logging import getLogger
 from typing import Any, Dict, Optional
 
-import json
-
 from nodestream.pipeline.extractors import Extractor
+
 from .database_connector import NeptuneDatabaseConnector
 from .query_executor import NeptuneDBQueryExecutor
+
 
 class NeptuneDBExtractor(Extractor):
     @classmethod
@@ -49,7 +50,7 @@ class NeptuneDBExtractor(Extractor):
 
         returned_records = []
         if response:
-            returned_records = list(response['results'])
+            returned_records = list(response["results"])
 
         for item in returned_records:
             yield item
