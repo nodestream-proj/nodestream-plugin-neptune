@@ -114,8 +114,6 @@ def _to_string_values(props: dict):
         if isinstance(v, Timestamp):
             props[k] = str(v)
         # Could the nodestream filter/transforms these values else where?
-        elif not v:
-            props[k] = "None"
         elif isinstance(v, numbers.Number) and math.isnan(v):
             props[k] = "NaN"
 
