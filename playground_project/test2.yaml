@@ -1,0 +1,12 @@
+- implementation: nodestream.pipeline:IterableExtractor
+  factory: range
+  arguments:
+    stop: 100000
+
+- implementation: nodestream.interpreting:Interpreter
+  arguments:
+    interpretations:
+      - type: source_node
+        node_type: Number
+        key:
+          number: !jmespath index

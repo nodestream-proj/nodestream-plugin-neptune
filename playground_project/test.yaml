@@ -1,0 +1,24 @@
+- implementation: nodestream.pipeline.extractors:FileExtractor
+  arguments:
+    globs:
+      - people/*.json
+
+- implementation: nodestream.interpreting:Interpreter
+  arguments:
+    interpretations:
+      - type: source_node
+        node_type: Person
+        key:
+          first_name: !jmespath firstName
+          last_name: !jmespath lastName
+        properties:
+          first_name: !jmespath firstName
+          last_name: !jmespath lastName
+          age: !jmespath age
+      - type: relationship
+        node_type: Person
+        relationship_type: KNOWS
+        node_key:
+          first_name: !jmespath friends[*].firstName
+          last_name: !jmespath friends[*].lastName
+        find_many: true
