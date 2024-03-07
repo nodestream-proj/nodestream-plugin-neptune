@@ -10,7 +10,10 @@ class RanQueryOnShot(BaseMatcher):
         self.query = query
 
     def search_mock(self, mock) -> bool:
-        return any((c.args and c.args[0] == self.query.query_statement) for c in mock.await_args_list)
+        return any(
+            (c.args and c.args[0] == self.query.query_statement)
+            for c in mock.await_args_list
+        )
 
     def _matches(self, item: Any) -> bool:
         return self.search_mock(item.database_connection.execute)

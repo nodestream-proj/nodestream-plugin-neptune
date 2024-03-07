@@ -8,11 +8,10 @@ from typing import Iterable
 from cymple.builder import NodeAfterMergeAvailable, NodeAvailable, QueryBuilder
 from nodestream.databases.query_executor import (
     OperationOnNodeIdentity, OperationOnRelationshipIdentity)
-from nodestream.model import (Node, Relationship,
-                              RelationshipIdentityShape, RelationshipWithNodes,
-                              TimeToLiveConfiguration)
+from nodestream.model import (Node, Relationship, RelationshipIdentityShape,
+                              RelationshipWithNodes, TimeToLiveConfiguration)
 from nodestream.schema.state import GraphObjectType
-from pandas import Timestamp, Timedelta
+from pandas import Timedelta, Timestamp
 
 from .query import Query, QueryBatch
 

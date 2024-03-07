@@ -1,9 +1,9 @@
 import json
 from abc import ABC, abstractmethod
-
 from logging import getLogger
 
 from aiobotocore.session import get_session
+
 
 class NeptuneConnection(ABC):
     @abstractmethod
@@ -13,11 +13,7 @@ class NeptuneConnection(ABC):
 
 class NeptuneDBConnection(NeptuneConnection):
     @classmethod
-    def from_configuration(
-        cls,
-        host: str,
-        region: str
-    ):
+    def from_configuration(cls, host: str, region: str):
         return cls(host=host, region=region)
 
     def __init__(self, host: str, region: str) -> None:
@@ -29,7 +25,7 @@ class NeptuneDBConnection(NeptuneConnection):
     async def execute(self, query_stmt: str, parameters: list):
         response = None
         async with self.session.create_client(
-                "neptunedata", region_name=self.region, endpoint_url=self.host
+            "neptunedata", region_name=self.region, endpoint_url=self.host
         ) as client:
             try:
                 self.logger.debug(
@@ -62,11 +58,7 @@ class NeptuneDBConnection(NeptuneConnection):
 
 class NeptuneAnalyticsConnection(NeptuneConnection):
     @classmethod
-    def from_configuration(
-        cls,
-        graph_id: str,
-        region: str
-    ):
+    def from_configuration(cls, graph_id: str, region: str):
         return cls(graph_id=graph_id, region=region)
 
     def __init__(self, graph_id: str, region: str) -> None:
@@ -106,4 +98,3 @@ class NeptuneAnalyticsConnection(NeptuneConnection):
                 )
 
         return response
-

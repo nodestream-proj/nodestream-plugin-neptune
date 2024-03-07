@@ -15,10 +15,10 @@ from .query import Query, QueryBatch
 
 class NeptuneQueryExecutor(QueryExecutor):
     def __init__(
-            self,
-            connection: NeptuneConnection,
-            ingest_query_builder: NeptuneIngestQueryBuilder,
-            async_partitions: int = 50
+        self,
+        connection: NeptuneConnection,
+        ingest_query_builder: NeptuneIngestQueryBuilder,
+        async_partitions: int = 50,
     ) -> None:
         self.session = get_session()
         self.database_connection = connection
@@ -27,7 +27,7 @@ class NeptuneQueryExecutor(QueryExecutor):
         self.async_partitions = async_partitions
 
     async def upsert_nodes_in_bulk_with_same_operation(
-            self, operation: OperationOnNodeIdentity, nodes: Iterable[Node]
+        self, operation: OperationOnNodeIdentity, nodes: Iterable[Node]
     ):
         batched_query = (
             self.ingest_query_builder.generate_batch_update_node_operation_batch(
@@ -37,9 +37,9 @@ class NeptuneQueryExecutor(QueryExecutor):
         await self.execute_batch(batched_query)
 
     async def upsert_relationships_in_bulk_of_same_operation(
-            self,
-            shape: OperationOnRelationshipIdentity,
-            relationships: Iterable[RelationshipWithNodes],
+        self,
+        shape: OperationOnRelationshipIdentity,
+        relationships: Iterable[RelationshipWithNodes],
     ):
         queries = (
             self.ingest_query_builder.generate_batch_update_relationship_query_batch(
@@ -66,12 +66,14 @@ class NeptuneQueryExecutor(QueryExecutor):
         partition_size = 150
 
         for i in range(0, len(parameters), partition_size):
-            yield {"params": parameters[i: i + partition_size]}
+            yield {"params": parameters[i : i + partition_size]}
 
     async def execute(self, query: Query, log_result: bool = False):
         query_stmt = query.query_statement
 
-        result = await asyncio.gather(self.database_connection.execute(query_stmt, query.parameters))
+        result = await asyncio.gather(
+            self.database_connection.execute(query_stmt, query.parameters)
+        )
 
         if log_result:
             for record in result.records:

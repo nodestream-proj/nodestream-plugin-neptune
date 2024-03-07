@@ -4,8 +4,9 @@ from nodestream.model import TimeToLiveConfiguration
 from nodestream.schema import GraphObjectType
 
 from nodestream_plugin_neptune.neptune_connection import NeptuneConnection
+from nodestream_plugin_neptune.neptune_query_executor import \
+    NeptuneQueryExecutor
 from nodestream_plugin_neptune.query import Query, QueryBatch
-from nodestream_plugin_neptune.neptune_query_executor import NeptuneQueryExecutor
 
 from .matchers import ran_query
 

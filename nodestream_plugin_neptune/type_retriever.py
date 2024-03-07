@@ -5,8 +5,8 @@ from nodestream.model import (Node, PropertySet, Relationship,
                               RelationshipWithNodes)
 from nodestream.model.graph_objects import Node, Relationship
 
-from .neptune_connector import NeptuneConnector
 from .extractor import NeptuneDBExtractor
+from .neptune_connector import NeptuneConnector
 
 FETCH_ALL_NODES_BY_TYPE_QUERY_FORMAT = """
 MATCH (n:{type})
