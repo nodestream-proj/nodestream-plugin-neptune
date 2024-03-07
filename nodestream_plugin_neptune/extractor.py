@@ -4,8 +4,8 @@ from typing import Any, Dict, Optional
 
 from nodestream.pipeline.extractors import Extractor
 
-from .database_connector import NeptuneDatabaseConnector
-from .query_executor import NeptuneDBQueryExecutor
+from .neptune_connector import NeptuneConnector
+from .neptune_query_executor import NeptuneQueryExecutor
 
 
 class NeptuneDBExtractor(Extractor):
@@ -17,13 +17,13 @@ class NeptuneDBExtractor(Extractor):
         limit: int = 100,
         **connector_args
     ):
-        connector = NeptuneDatabaseConnector.from_file_data(**connector_args)
+        connector = NeptuneConnector.from_file_data(**connector_args)
         return cls(query, connector, parameters, limit)
 
     def __init__(
         self,
         query: str,
-        connector: NeptuneDatabaseConnector,
+        connector: NeptuneConnector,
         parameters: Optional[Dict[str, Any]] = None,
         limit: int = 100,
     ) -> None:
@@ -38,7 +38,7 @@ class NeptuneDBExtractor(Extractor):
         # this class and move it to a GraphDatabaseExtractor class following the lead
         # we have of the writer class.
         offset = 0
-        executor: NeptuneDBQueryExecutor = self.connector.make_query_executor()
+        executor: NeptuneQueryExecutor = self.connector.make_query_executor()
 
         params = dict(**self.parameters, limit=self.limit, offset=offset)
         self.logger.info(
