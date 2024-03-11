@@ -104,18 +104,15 @@ def _make_relationship(rel_identity: RelationshipIdentityShape):
     return match_rel_query
 
 
-def _to_string_values(props: dict):
-    # Convert unsupported values to string.
-    # There must be better ways to handle these.
-    # It's here only for the PoC.
+def _convert_unsupported_values(props: dict):
+    # Convert unsupported values.
+    # Due to the structure of our queries, all data must be passed as valid JSON.
     for k, v in props.items():
-        # Neptune can handles datetime type
-        # see: https://docs.aws.amazon.com/neptune/latest/userguide/feature-opencypher-compliance.html#opencypher-compliance-differences
-        if isinstance(v, Timestamp):
-            props[k] = str(v)
-        # Could the nodestream filter/transforms these values else where?
-        elif isinstance(v, numbers.Number) and math.isnan(v):
-            props[k] = "NaN"
+        # Timestamp and datetime are not valid json. Convert to POSIX timestamp instead.
+        if isinstance(v, Timestamp) or isinstance(v, datetime):
+            props[k] = v.timestamp()
+        elif isinstance(v, numbers.Number) and not math.isfinite(v):
+            raise ValueError("NaN and Infinity float values are not supported")
 
     return props
 
@@ -158,7 +155,7 @@ class NeptuneDBIngestQueryBuilder:
         """Generate the parameters for a query to update a node in the database."""
 
         node_props = {**self.generate_node_key_params(node), **node.properties}
-        node_props = _to_string_values(node_props)
+        node_props = _convert_unsupported_values(node_props)
 
         return node_props
 
@@ -202,7 +199,7 @@ class NeptuneDBIngestQueryBuilder:
     def generate_update_rel_params(self, rel: Relationship) -> dict:
         """Generate the parameters for a query to update a relationship in the database."""
 
-        return _to_string_values({**rel.key_values, **rel.properties})
+        return _convert_unsupported_values({**rel.key_values, **rel.properties})
 
     def generate_update_rel_between_nodes_params(
         self, rel: RelationshipWithNodes
@@ -253,7 +250,7 @@ class NeptuneDBIngestQueryBuilder:
         earliest_allowed_time = datetime.utcnow() - timedelta(
             hours=config.expiry_in_hours
         )
-        params = {"earliest_allowed_time": earliest_allowed_time}
+        params = _convert_unsupported_values({"earliest_allowed_time": earliest_allowed_time})
         if config.custom_query is not None:
             return Query(config.custom_query, params)
 
