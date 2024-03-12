@@ -29,14 +29,12 @@ def test_make_neptune_analytics_query_executor(mocker):
     connector: NeptuneConnector = NeptuneConnector(
         mode="analytics",
         graph_id="graph_identifier",
-        region="myAWSRegion",
         async_partitions=25,
         ingest_query_builder=mocker.Mock(),
     )
     executor: NeptuneQueryExecutor = connector.make_query_executor()
     assert_that(executor.database_connection, instance_of(NeptuneAnalyticsConnection))
     assert_that(executor.database_connection.graph_id, equal_to(connector.graph_id))
-    assert_that(executor.database_connection.region, equal_to(connector.region))
     assert_that(executor.async_partitions, equal_to(connector.async_partitions))
     assert_that(executor.ingest_query_builder, equal_to(connector.ingest_query_builder))
 
@@ -71,7 +69,19 @@ def test_database_must_have_host():
         )
     assert_that(
         str(valErr.value),
-        equal_to("A `host` must be specified when `mode` is 'database'."),
+        equal_to("A `host` and `region` must be specified when `mode` is 'database'."),
+    )
+
+
+def test_database_must_have_region():
+    with pytest.raises(ValueError) as valErr:
+        NeptuneConnector.from_file_data(
+            mode="database",
+            host="testEndpoint.com",
+        )
+    assert_that(
+        str(valErr.value),
+        equal_to("A `host` and `region` must be specified when `mode` is 'database'."),
     )
 
 

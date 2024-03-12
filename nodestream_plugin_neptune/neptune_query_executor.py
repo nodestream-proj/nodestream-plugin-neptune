@@ -2,7 +2,6 @@ import asyncio
 from logging import getLogger
 from typing import Iterable
 
-from aiobotocore.session import get_session
 from nodestream.databases.query_executor import (
     OperationOnNodeIdentity, OperationOnRelationshipIdentity, QueryExecutor)
 from nodestream.model import (IngestionHook, Node, RelationshipWithNodes,
@@ -20,7 +19,6 @@ class NeptuneQueryExecutor(QueryExecutor):
         ingest_query_builder: NeptuneIngestQueryBuilder,
         async_partitions: int = 50,
     ) -> None:
-        self.session = get_session()
         self.database_connection = connection
         self.ingest_query_builder = ingest_query_builder
         self.logger = getLogger(self.__class__.__name__)

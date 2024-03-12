@@ -10,7 +10,7 @@ from .neptune_query_executor import NeptuneQueryExecutor
 class NeptuneConnector(DatabaseConnector, alias="neptune"):
     @classmethod
     def from_file_data(
-        cls, mode: str, region: str, host: str = None, graph_id: str = None, **kwargs
+        cls, mode: str, region: str = None, host: str = None, graph_id: str = None, **kwargs
     ):
         return cls(
             mode=mode,
@@ -24,36 +24,18 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
     def __init__(
         self,
         mode: str,
-        region: str,
         async_partitions: int,
         ingest_query_builder: NeptuneIngestQueryBuilder,
         host: str = None,
         graph_id: str = None,
+        region: str = None,
     ) -> None:
-        if mode != "database" and mode != "analytics":
-            raise ValueError("`mode` must be either 'database' or 'analytics'")
         if mode == "database":
-            if host is None:
-                raise ValueError(
-                    "A `host` must be specified when `mode` is 'database'."
-                )
-            if graph_id is not None:
-                raise ValueError(
-                    "A `graph_id` should not be used with Neptune Database, `host=<Neptune Endpoint>` should be used instead. If using Neptune Analytics, set `mode='analytics'."
-                )
-            self.connection = NeptuneDBConnection(host=host, region=region)
+            self.connection = NeptuneDBConnection.from_configuration(host=host, graph_id=graph_id, region=region)
         elif mode == "analytics":
-            if graph_id is None:
-                raise ValueError(
-                    "A `graph_id` must be specified when `mode` is 'analytics'."
-                )
-            if host is not None:
-                raise ValueError(
-                    "A `host` should not be used with Neptune Analytics, `graph_id=<Graph Identifier>` should be used instead. If using Neptune Database, set `mode='database'."
-                )
-            self.connection = NeptuneAnalyticsConnection(
-                graph_id=graph_id, region=region
-            )
+            self.connection = NeptuneAnalyticsConnection.from_configuration(graph_id=graph_id, host=host)
+        else:
+            raise ValueError("`mode` must be either 'database' or 'analytics'")
 
         self.mode = mode
         self.host = host

@@ -5,13 +5,12 @@ scopes:
       - test2.yaml
 
 targets:
-  neptune-db:
+  db-one:
     database: neptune
     mode: database
     host: https://<NEPTUNE_ENDPOINT>:<PORT>
     region: <AWS_REGION>
-  neptune-analytics:
+  db-two:
     database: neptune
     mode: analytics
     graph_id: <GRAPH_IDENTIFIER>
-    region: <AWS_REGION>
