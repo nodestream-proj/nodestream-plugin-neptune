@@ -105,7 +105,7 @@ def _convert_unsupported_values(props: dict):
     # Due to the structure of our queries, all data must be passed as valid JSON.
     for k, v in props.items():
         # Timestamp and datetime are not valid json. Convert to POSIX timestamp instead.
-        if isinstance(v, Timestamp) or isinstance(v, datetime):
+        if isinstance(v, (Timestamp, datetime)):
             props[k] = v.timestamp()
         elif isinstance(v, numbers.Number) and not math.isfinite(v):
             raise ValueError("NaN and Infinity float values are not supported")
