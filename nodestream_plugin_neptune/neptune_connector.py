@@ -8,10 +8,35 @@ from .neptune_query_executor import NeptuneQueryExecutor
 
 
 class NeptuneConnector(DatabaseConnector, alias="neptune"):
+    """A Connector for AWS Neptune Database and AWS Neptune Analytics.
+
+    This class is responsible for creating the various components needed for
+    nodestream to interact with a Neptune graph. It is also responsible
+    for providing the configuration options for the Neptune database.
+    """
+
     @classmethod
     def from_file_data(
-        cls, mode: str, region: str = None, host: str = None, graph_id: str = None, **kwargs
+        cls,
+        mode: str,
+        region: str = None,
+        host: str = None,
+        graph_id: str = None,
+        **kwargs
     ):
+        """
+        Parameters
+        ----------
+        mode : str
+            Either "database" or "analytics". Selects target type of Neptune graph
+        host : str, optional
+            Used with mode="database", specify the endpoint of the target Neptune database cluster
+        region : str, optional
+            Used with mode="database", specify the AWS region of the target Neptune database cluster
+        graph_id : str, optional
+            Used with mode="analytics", specify the graph identifier of the target Neptune Analytics graph
+        """
+
         return cls(
             mode=mode,
             host=host,
@@ -31,9 +56,13 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         region: str = None,
     ) -> None:
         if mode == "database":
-            self.connection = NeptuneDBConnection.from_configuration(host=host, graph_id=graph_id, region=region)
+            self.connection = NeptuneDBConnection.from_configuration(
+                host=host, graph_id=graph_id, region=region
+            )
         elif mode == "analytics":
-            self.connection = NeptuneAnalyticsConnection.from_configuration(graph_id=graph_id, host=host)
+            self.connection = NeptuneAnalyticsConnection.from_configuration(
+                graph_id=graph_id, host=host
+            )
         else:
             raise ValueError("`mode` must be either 'database' or 'analytics'")
 

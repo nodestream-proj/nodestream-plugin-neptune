@@ -245,7 +245,9 @@ class NeptuneIngestQueryBuilder:
         earliest_allowed_time = Timestamp.utcnow() - Timedelta(
             hours=config.expiry_in_hours
         )
-        params = _convert_unsupported_values({"earliest_allowed_time": earliest_allowed_time})
+        params = _convert_unsupported_values(
+            {"earliest_allowed_time": earliest_allowed_time}
+        )
         if config.custom_query is not None:
             return Query(config.custom_query, params)
 

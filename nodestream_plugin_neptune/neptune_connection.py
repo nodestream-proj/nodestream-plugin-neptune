@@ -10,7 +10,8 @@ class NeptuneConnection(ABC):
         response = None
         async with self._create_boto_client() as client:
             try:
-                response = await self._execute_query(client,
+                response = await self._execute_query(
+                    client,
                     query_stmt=query_stmt,
                     parameters=parameters,
                 )
@@ -46,7 +47,8 @@ class NeptuneDBConnection(NeptuneConnection):
             )
         if graph_id is not None:
             raise ValueError(
-                "A `graph_id` should not be used with Neptune Database, `host=<Neptune Endpoint>` should be used instead. If using Neptune Analytics, set `mode='analytics'."
+                "A `graph_id` should not be used with Neptune Database, `host=<Neptune Endpoint>` should be used "
+                "instead. If using Neptune Analytics, set `mode='analytics'."
             )
         return cls(host=host, region=region)
 
