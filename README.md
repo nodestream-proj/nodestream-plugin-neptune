@@ -17,5 +17,11 @@ pip install nodestream-plugin-neptune
 targets:
   my-neptune-db:
     database: neptune
-    # ... TODO: Add documentation of neptune connection args.
+    mode: database
+    host: https://<NEPTUNE_ENDPOINT>:<PORT>
+    region: <AWS_REGION>
+  my-neptune-analytics:
+    database: neptune
+    mode: analytics
+    graph_id: <GRAPH_IDENTIFIER>
 ```

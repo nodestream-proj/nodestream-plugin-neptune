@@ -5,8 +5,8 @@ from nodestream.model import (Node, PropertySet, Relationship,
                               RelationshipWithNodes)
 from nodestream.model.graph_objects import Node, Relationship
 
-from .database_connector import NeptuneDatabaseConnector
 from .extractor import NeptuneDBExtractor
+from .neptune_connector import NeptuneConnector
 
 FETCH_ALL_NODES_BY_TYPE_QUERY_FORMAT = """
 MATCH (n:{type})
@@ -20,7 +20,7 @@ RETURN a, r, b SKIP $offset LIMIT $limit
 
 
 class NeptuneDBTypeRetriever(TypeRetriever):
-    def __init__(self, connector: NeptuneDatabaseConnector) -> None:
+    def __init__(self, connector: NeptuneConnector) -> None:
         self.connector = connector
 
     def map_neptune_node_to_nodestream_node(self, node: Node, type: str = None) -> Node:

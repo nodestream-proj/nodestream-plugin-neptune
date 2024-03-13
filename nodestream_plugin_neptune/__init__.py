@@ -1,3 +1,3 @@
-from .database_connector import NeptuneDatabaseConnector
+from .neptune_connector import NeptuneConnector
 
-__all__ = ("NeptuneDatabaseConnector",)
+__all__ = ("NeptuneConnector",)

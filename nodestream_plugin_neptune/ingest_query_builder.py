@@ -1,19 +1,17 @@
 import math
 import numbers
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import cache, wraps
 from typing import Iterable
 
 from cymple.builder import NodeAfterMergeAvailable, NodeAvailable, QueryBuilder
 from nodestream.databases.query_executor import (
     OperationOnNodeIdentity, OperationOnRelationshipIdentity)
-from nodestream.model import (Node, NodeCreationRule, Relationship,
-                              RelationshipCreationRule,
-                              RelationshipIdentityShape, RelationshipWithNodes,
-                              TimeToLiveConfiguration)
+from nodestream.model import (Node, Relationship, RelationshipIdentityShape,
+                              RelationshipWithNodes, TimeToLiveConfiguration)
 from nodestream.schema.state import GraphObjectType
-from pandas import Timestamp
+from pandas import Timedelta, Timestamp
 
 from .query import Query, QueryBatch
 
@@ -22,8 +20,6 @@ GENERIC_FROM_NODE_REF_NAME = "from_node"
 GENERIC_TO_NODE_REF_NAME = "to_node"
 RELATIONSHIP_REF_NAME = "rel"
 PARAMETER_CORRECTION_REGEX = re.compile(r"\"(params.__\w+)\"")
-DELETE_NODE_QUERY = "MATCH (n) WHERE id(n) = id DETACH DELETE n"
-DELETE_REL_QUERY = "MATCH ()-[r]->() WHERE id(r) = id DELETE r"
 
 
 def correct_parameters(f):
@@ -109,7 +105,7 @@ def _convert_unsupported_values(props: dict):
     # Due to the structure of our queries, all data must be passed as valid JSON.
     for k, v in props.items():
         # Timestamp and datetime are not valid json. Convert to POSIX timestamp instead.
-        if isinstance(v, Timestamp) or isinstance(v, datetime):
+        if isinstance(v, (Timestamp, datetime)):
             props[k] = v.timestamp()
         elif isinstance(v, numbers.Number) and not math.isfinite(v):
             raise ValueError("NaN and Infinity float values are not supported")
@@ -117,7 +113,7 @@ def _convert_unsupported_values(props: dict):
     return props
 
 
-class NeptuneDBIngestQueryBuilder:
+class NeptuneIngestQueryBuilder:
     @cache
     @correct_parameters
     def generate_update_node_operation_query_statement(
@@ -246,11 +242,12 @@ class NeptuneDBIngestQueryBuilder:
     def generate_ttl_query_from_configuration(
         self, config: TimeToLiveConfiguration
     ) -> Query:
-
-        earliest_allowed_time = datetime.utcnow() - timedelta(
+        earliest_allowed_time = Timestamp.utcnow() - Timedelta(
             hours=config.expiry_in_hours
         )
-        params = _convert_unsupported_values({"earliest_allowed_time": earliest_allowed_time})
+        params = _convert_unsupported_values(
+            {"earliest_allowed_time": earliest_allowed_time}
+        )
         if config.custom_query is not None:
             return Query(config.custom_query, params)
 
