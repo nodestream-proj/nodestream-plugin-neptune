@@ -6,6 +6,10 @@ from aiobotocore.session import get_session
 
 
 class NeptuneConnection(ABC):
+    @property
+    def logger(self):
+        return getLogger(self.__class__.__name__)
+
     async def execute(self, query_stmt: str, parameters):
         response = None
         async with self._create_boto_client() as client:
@@ -56,7 +60,6 @@ class NeptuneDBConnection(NeptuneConnection):
         self.host = host
         self.region = region
         self.boto_session = get_session()
-        self.logger = getLogger(self.__class__.__name__)
 
     def _create_boto_client(self):
         return self.boto_session.create_client(
@@ -95,7 +98,6 @@ class NeptuneAnalyticsConnection(NeptuneConnection):
     def __init__(self, graph_id: str) -> None:
         self.graph_id = graph_id
         self.boto_session = get_session()
-        self.logger = getLogger(self.__class__.__name__)
 
     def _create_boto_client(self):
         return self.boto_session.create_client("neptune-graph")
