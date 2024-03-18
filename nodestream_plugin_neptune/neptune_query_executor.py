@@ -17,12 +17,10 @@ class NeptuneQueryExecutor(QueryExecutor):
         self,
         connection: NeptuneConnection,
         ingest_query_builder: NeptuneIngestQueryBuilder,
-        async_partitions: int = 50,
     ) -> None:
         self.database_connection = connection
         self.ingest_query_builder = ingest_query_builder
         self.logger = getLogger(self.__class__.__name__)
-        self.async_partitions = async_partitions
 
     async def upsert_nodes_in_bulk_with_same_operation(
         self, operation: OperationOnNodeIdentity, nodes: Iterable[Node]

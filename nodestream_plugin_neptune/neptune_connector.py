@@ -19,10 +19,9 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
     def from_file_data(
         cls,
         mode: str,
-        region: str = None,
         host: str = None,
         graph_id: str = None,
-        **kwargs
+        **client_kwargs
     ):
         """
         Parameters
@@ -31,37 +30,35 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
             Either "database" or "analytics". Selects target type of Neptune graph
         host : str, optional
             Used with mode="database", specify the endpoint of the target Neptune database cluster
-        region : str, optional
-            Used with mode="database", specify the AWS region of the target Neptune database cluster
         graph_id : str, optional
             Used with mode="analytics", specify the graph identifier of the target Neptune Analytics graph
+        client_kwargs : optional
+            Additional keyword arguments to be passed to the boto3 client constructor
         """
 
         return cls(
             mode=mode,
             host=host,
             graph_id=graph_id,
-            region=region,
-            async_partitions=kwargs.get("async_partitions"),
             ingest_query_builder=NeptuneIngestQueryBuilder(),
+            **client_kwargs
         )
 
     def __init__(
         self,
         mode: str,
-        async_partitions: int,
         ingest_query_builder: NeptuneIngestQueryBuilder,
         host: str = None,
         graph_id: str = None,
-        region: str = None,
+        **client_kwargs
     ) -> None:
         if mode == "database":
             self.connection = NeptuneDBConnection.from_configuration(
-                host=host, graph_id=graph_id, region=region
+                host=host, graph_id=graph_id, **client_kwargs
             )
         elif mode == "analytics":
             self.connection = NeptuneAnalyticsConnection.from_configuration(
-                graph_id=graph_id, host=host
+                graph_id=graph_id, host=host, **client_kwargs
             )
         else:
             raise ValueError("`mode` must be either 'database' or 'analytics'")
@@ -69,15 +66,12 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         self.mode = mode
         self.host = host
         self.graph_id = graph_id
-        self.region = region
         self.ingest_query_builder = ingest_query_builder
-        self.async_partitions = async_partitions
 
     def make_query_executor(self) -> QueryExecutor:
         return NeptuneQueryExecutor(
             connection=self.connection,
             ingest_query_builder=self.ingest_query_builder,
-            async_partitions=self.async_partitions,
         )
 
     def make_type_retriever(self) -> TypeRetriever:
