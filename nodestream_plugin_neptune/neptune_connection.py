@@ -44,26 +44,26 @@ class NeptuneConnection(ABC):
 
 class NeptuneDBConnection(NeptuneConnection):
     @classmethod
-    def from_configuration(cls, host: str, region: str, graph_id: str = None):
-        if host is None or region is None:
+    def from_configuration(cls, host: str, graph_id: str = None, **client_kwargs):
+        if host is None:
             raise ValueError(
-                "A `host` and `region` must be specified when `mode` is 'database'."
+                "A `host` must be specified when `mode` is 'database'."
             )
         if graph_id is not None:
             raise ValueError(
                 "A `graph_id` should not be used with Neptune Database, `host=<Neptune Endpoint>` should be used "
                 "instead. If using Neptune Analytics, set `mode='analytics'."
             )
-        return cls(host=host, region=region)
+        return cls(host=host, **client_kwargs)
 
-    def __init__(self, host: str, region: str) -> None:
+    def __init__(self, host: str,  **client_kwargs) -> None:
         self.host = host
-        self.region = region
         self.boto_session = get_session()
+        self.client_kwargs = client_kwargs
 
     def _create_boto_client(self):
         return self.boto_session.create_client(
-            "neptunedata", region_name=self.region, endpoint_url=self.host
+            "neptunedata", endpoint_url=self.host, **self.client_kwargs
         )
 
     async def _execute_query(self, client, query_stmt: str, parameters):
@@ -84,7 +84,7 @@ class NeptuneDBConnection(NeptuneConnection):
 
 class NeptuneAnalyticsConnection(NeptuneConnection):
     @classmethod
-    def from_configuration(cls, graph_id: str, host: str = None):
+    def from_configuration(cls, graph_id: str, host: str = None, **client_kwargs):
         if graph_id is None:
             raise ValueError(
                 "A `graph_id` must be specified when `mode` is 'analytics'."
@@ -93,14 +93,15 @@ class NeptuneAnalyticsConnection(NeptuneConnection):
             raise ValueError(
                 "A `host` should not be used with Neptune Analytics, `graph_id=<Graph Identifier>` should be used instead. If using Neptune Database, set `mode='database'."
             )
-        return cls(graph_id=graph_id)
+        return cls(graph_id=graph_id, **client_kwargs)
 
-    def __init__(self, graph_id: str) -> None:
+    def __init__(self, graph_id: str, **client_kwargs) -> None:
         self.graph_id = graph_id
         self.boto_session = get_session()
+        self.client_kwargs = client_kwargs
 
     def _create_boto_client(self):
-        return self.boto_session.create_client("neptune-graph")
+        return self.boto_session.create_client("neptune-graph", **self.client_kwargs)
 
     async def _execute_query(self, client, query_stmt: str, parameters):
         self.logger.debug(
