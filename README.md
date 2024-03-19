@@ -28,9 +28,8 @@ should be updated to
 # ...
 [tool.poetry.dependencies]
 python = "^3.10"
-nodestream = "^0.12.0a2"
-
-nodestream-plugin-neptune = "^0.12.0a1"
+nodestream = "^0.12.0a3"
+nodestream-plugin-neptune = "^0.12.0a2"
 # ...
 ```
 
