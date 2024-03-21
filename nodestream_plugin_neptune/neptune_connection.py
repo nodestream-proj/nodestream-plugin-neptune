@@ -1,4 +1,6 @@
+import asyncio
 import json
+import random
 from abc import ABC, abstractmethod
 from logging import getLogger
 
@@ -12,24 +14,20 @@ class NeptuneConnection(ABC):
 
     async def execute(self, query_stmt: str, parameters):
         response = None
+        max_retries = 3
+        retry_delay = 1
+
         async with self._create_boto_client() as client:
             try:
-                response = await self._execute_query(
-                    client,
-                    query_stmt=query_stmt,
-                    parameters=parameters,
+                response = await self.__retry(
+                    func=lambda: self.__attempt_query(client, query_stmt, parameters),
+                    max_retries=max_retries,
+                    delay=retry_delay,
+                    exceptions=(client.exceptions.ConflictException,),
                 )
-
-                code = response["ResponseMetadata"]["HTTPStatusCode"]
-                if code != 200:
-                    self.logger.error(
-                        f"Query `{query_stmt}` failed with response:\n{response}"
-                    )
 
             except Exception as e:
-                self.logger.exception(
-                    f"Unexpected error for query: {query_stmt}.", e, stack_info=True
-                )
+                self.logger.exception(f"Unexpected error: {e} for query: {query_stmt}.")
 
         return response
 
@@ -41,14 +39,62 @@ class NeptuneConnection(ABC):
     async def _execute_query(self, client, query_stmt: str, parameters: str):
         pass
 
+    async def __attempt_query(self, client, query_stmt: str, parameters: str):
+        response = await self._execute_query(
+            client,
+            query_stmt=query_stmt,
+            parameters=parameters,
+        )
+
+        code = response["ResponseMetadata"]["HTTPStatusCode"]
+        if code != 200:
+            self.logger.error(f"Query `{query_stmt}` failed with response:\n{response}")
+
+        return response
+
+    async def __retry(self, func, max_retries: int, exceptions, delay=0):
+        """
+        Retries a function `func` up to `attempts` times on encountering exceptions in `exceptions`.
+        Waits for `delay` seconds between retries.
+
+        Args:
+            max_retries: Number of retry attempts.
+            exceptions: Exceptions to catch and retry on (tuple of exception types).
+            delay: Delay in seconds between retries.
+            func: Function to be retried.
+
+        Returns:
+            The return value of the successful function call.
+
+        Raises:
+            Exception: The last encountered exception if all retries fail.
+        """
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                return await func()
+            except exceptions as e:
+                if attempt < max_retries:
+                    self.logger.warning(
+                        f"Query failed on attempt {attempt}/{max_retries} with error: {e} "
+                        f"Retrying in {delay}s."
+                    )
+                    await asyncio.sleep(delay + random.uniform(0, 0.5))
+                    delay *= 2
+                    continue  # retry on conflict exception
+                else:
+                    self.logger.exception(
+                        f"Query failed on attempt {attempt}/{max_retries} with error: {e} "
+                        f"Max retries reached."
+                    )
+                    raise e
+
 
 class NeptuneDBConnection(NeptuneConnection):
     @classmethod
     def from_configuration(cls, host: str, graph_id: str = None, **client_kwargs):
         if host is None:
-            raise ValueError(
-                "A `host` must be specified when `mode` is 'database'."
-            )
+            raise ValueError("A `host` must be specified when `mode` is 'database'.")
         if graph_id is not None:
             raise ValueError(
                 "A `graph_id` should not be used with Neptune Database, `host=<Neptune Endpoint>` should be used "
@@ -56,7 +102,7 @@ class NeptuneDBConnection(NeptuneConnection):
             )
         return cls(host=host, **client_kwargs)
 
-    def __init__(self, host: str,  **client_kwargs) -> None:
+    def __init__(self, host: str, **client_kwargs) -> None:
         self.host = host
         self.boto_session = get_session()
         self.client_kwargs = client_kwargs
