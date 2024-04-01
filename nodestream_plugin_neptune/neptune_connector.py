@@ -1,10 +1,12 @@
 from nodestream.databases.copy import TypeRetriever
 from nodestream.databases.database_connector import (DatabaseConnector,
                                                      QueryExecutor)
+from nodestream.schema.migrations import Migrator
 
 from .ingest_query_builder import NeptuneIngestQueryBuilder
 from .neptune_connection import NeptuneAnalyticsConnection, NeptuneDBConnection
 from .neptune_query_executor import NeptuneQueryExecutor
+from .neptune_migrator import NeptuneMigrator
 
 
 class NeptuneConnector(DatabaseConnector, alias="neptune"):
@@ -79,5 +81,5 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
 
         return NeptuneDBTypeRetriever(self)
 
-    def make_migrator(self) -> TypeRetriever:
-        raise NotImplementedError
+    def make_migrator(self) -> Migrator:
+        return NeptuneMigrator()
