@@ -1,6 +1,5 @@
 from nodestream.databases.copy import TypeRetriever
-from nodestream.databases.database_connector import (DatabaseConnector,
-                                                     QueryExecutor)
+from nodestream.databases.database_connector import DatabaseConnector, QueryExecutor
 from nodestream.schema.migrations import Migrator
 
 from .ingest_query_builder import NeptuneIngestQueryBuilder
@@ -19,11 +18,7 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
 
     @classmethod
     def from_file_data(
-        cls,
-        mode: str,
-        host: str = None,
-        graph_id: str = None,
-        **client_kwargs
+        cls, mode: str, host: str = None, graph_id: str = None, **client_kwargs
     ):
         """
         Parameters
@@ -82,4 +77,4 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         return NeptuneDBTypeRetriever(self)
 
     def make_migrator(self) -> Migrator:
-        return NeptuneMigrator()
+        return NeptuneMigrator(self.connection)
