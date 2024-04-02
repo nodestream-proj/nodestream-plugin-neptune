@@ -12,8 +12,8 @@ class NeptuneConnection(ABC):
     def logger(self):
         return getLogger(self.__class__.__name__)
 
-    async def execute(self, query_stmt: str, parameters):
-        response = None
+    async def execute(self, query_stmt: str, parameters) -> dict | None:
+        response: dict | None = None
         max_retries = 3
         retry_delay = 1
 
@@ -36,10 +36,31 @@ class NeptuneConnection(ABC):
         pass
 
     @abstractmethod
-    async def _execute_query(self, client, query_stmt: str, parameters: str):
+    async def _execute_query(
+        self, client, query_stmt: str, parameters: str
+    ) -> dict | None:
         pass
 
-    async def __attempt_query(self, client, query_stmt: str, parameters: str):
+    async def __attempt_query(
+        self, client, query_stmt: str, parameters: str
+    ) -> dict | None:
+        """
+        Attempts to execute OC query `query_stmt` with `parameters` via `client`
+
+        Args:
+            client:
+                Client to run query. Client is of whichever type is produced by `self._create_boto_client()`
+            query_stmt: str
+                OpenCypher query statement string to execute.
+            parameters: str
+                Query parameters encoded as a JSON string.
+
+        Returns: dict | None
+            The response from the query.
+
+        Raises:
+            Exception: Any exception thrown from the client when attempting queries.
+        """
         response = await self._execute_query(
             client,
             query_stmt=query_stmt,
@@ -58,12 +79,16 @@ class NeptuneConnection(ABC):
         Waits for `delay` seconds between retries.
 
         Args:
-            max_retries: Number of retry attempts.
-            exceptions: Exceptions to catch and retry on (tuple of exception types).
-            delay: Delay in seconds between retries.
-            func: Function to be retried.
+            max_retries: int
+                Number of retry attempts.
+            exceptions: (Exception...)
+                Exceptions to catch and retry on (tuple of exception types).
+            delay: int
+                Delay in seconds between retries.
+            func: function
+                Function to be retried.
 
-        Returns:
+        Returns: dict | None
             The return value of the successful function call.
 
         Raises:
