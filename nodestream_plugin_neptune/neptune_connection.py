@@ -23,7 +23,7 @@ class NeptuneConnection(ABC):
                     func=lambda: self.__attempt_query(client, query_stmt, parameters),
                     max_retries=max_retries,
                     delay=retry_delay,
-                    exceptions=(client.exceptions.ConflictException,),
+                    exceptions=self._get_retryable_exceptions(client),
                 )
 
             except Exception as e:
@@ -114,6 +114,10 @@ class NeptuneConnection(ABC):
                     )
                     raise e
 
+    @abstractmethod
+    def _get_retryable_exceptions(self):
+        pass
+
 
 class NeptuneDBConnection(NeptuneConnection):
     @classmethod
@@ -152,6 +156,9 @@ class NeptuneDBConnection(NeptuneConnection):
             parameters=json.dumps(parameters),
         )
 
+    def _get_retryable_exceptions(self, client):
+        return (client.exceptions.ConcurrentModificationException,)
+
 
 class NeptuneAnalyticsConnection(NeptuneConnection):
     @classmethod
@@ -189,3 +196,6 @@ class NeptuneAnalyticsConnection(NeptuneConnection):
             language="OPEN_CYPHER",
             parameters=parameters,
         )
+
+    def _get_retryable_exceptions(self, client):
+        return (client.exceptions.ConflictException,)
