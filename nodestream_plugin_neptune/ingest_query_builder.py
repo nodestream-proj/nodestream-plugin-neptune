@@ -8,8 +8,10 @@ from typing import Iterable
 from cymple.builder import NodeAfterMergeAvailable, NodeAvailable, QueryBuilder
 from nodestream.databases.query_executor import (
     OperationOnNodeIdentity, OperationOnRelationshipIdentity)
-from nodestream.model import (Node, Relationship, RelationshipIdentityShape,
-                              RelationshipWithNodes, TimeToLiveConfiguration)
+from nodestream.model import (Node, NodeCreationRule, Relationship,
+                              RelationshipCreationRule,
+                              RelationshipIdentityShape, RelationshipWithNodes,
+                              TimeToLiveConfiguration)
 from nodestream.schema.state import GraphObjectType
 from pandas import Timedelta, Timestamp
 
@@ -119,32 +121,41 @@ class NeptuneIngestQueryBuilder:
     def generate_update_node_operation_query_statement(
         self,
         operation: OperationOnNodeIdentity,
-        ref: str,
     ) -> str:
         """Generate a query to update a node in the database given a node type and a match strategy."""
-        labels = ":".join(
-            [
-                operation.node_identity.type,
-                *operation.node_identity.additional_types,
-            ]
-        )
+
         node_id_param_name = generate_id_param_name(GENERIC_NODE_REF_NAME)
-        merge_node = _merge_node(labels, node_id_param_name, GENERIC_NODE_REF_NAME)
 
-        """
-        At this time, Neptune doesn't support nested maps very well.
-        We get an error trying to access inner maps in the parameters
-        of our openCypher query. 
-        
-        As such, node's properties and __node_id has to be kept at 
-        the same level.
+        if operation.node_creation_rule == NodeCreationRule.EAGER:
+            merge_node = str(
+                _merge_node(
+                    operation.node_identity.type,
+                    node_id_param_name,
+                    GENERIC_NODE_REF_NAME,
+                )
+            )
+            """
+            At this time, Neptune doesn't support nested maps very well.
+            We get an error trying to access inner maps in the parameters
+            of our openCypher query. 
 
-        As a work around, we use removeKeyFromMap() to remove __node_id before 
-        setting node's properties. removeKeyFromMap() Neptune specific.
-        """
-        on_create = f"""ON CREATE SET {GENERIC_NODE_REF_NAME} = removeKeyFromMap(param, "{node_id_param_name}")"""
-        on_match = f"""ON MATCH SET {GENERIC_NODE_REF_NAME} += removeKeyFromMap(param, "{node_id_param_name}")"""
-        query = f"{merge_node} {on_create} {on_match}"
+            As such, node's properties and __node_id has to be kept at 
+            the same level.
+
+            As a work around, we use removeKeyFromMap() to remove __node_id before 
+            setting node's properties. removeKeyFromMap() Neptune specific.
+            """
+            on_create = f"""ON CREATE SET {GENERIC_NODE_REF_NAME} = removeKeyFromMap(param, "{node_id_param_name}")"""
+            on_match = f"""ON MATCH SET {GENERIC_NODE_REF_NAME} += removeKeyFromMap(param, "{node_id_param_name}")"""
+            query = f"{merge_node} {on_create} {on_match}"
+        else:
+            query = str(_match_node(operation, node_id_param_name))
+            query += f""" SET {GENERIC_NODE_REF_NAME} += removeKeyFromMap(param, "{node_id_param_name}")"""
+
+        if operation.node_identity.additional_types:
+            additional_types = ":".join(operation.node_identity.additional_types)
+            query += f" SET {GENERIC_NODE_REF_NAME}:{additional_types}"
+
         return query
 
     def generate_update_node_operation_params(self, node: Node) -> dict:
@@ -184,6 +195,12 @@ class NeptuneIngestQueryBuilder:
 
         merge_rel_segment = _make_relationship(operation.relationship_identity)
 
+        if operation.relationship_creation_rule == RelationshipCreationRule.CREATE:
+            create_rel_segment = str(merge_rel_segment).replace("MERGE", "CREATE")
+            set_properties_segment = f"""SET {RELATIONSHIP_REF_NAME} += removeKeyFromMap(removeKeyFromMap(param, "{from_node_id_param_name}"), "{to_node_id_param_name}")"""
+
+            return f"{match_from_node_segment} {match_to_node_segment} {create_rel_segment} {set_properties_segment}"
+
         # At this time, Neptune doesn't support nested maps very well.
         # See comments in generate_update_node_operation_query_statement()
         on_create = f"""ON CREATE SET {RELATIONSHIP_REF_NAME} = removeKeyFromMap(removeKeyFromMap(param, "{from_node_id_param_name}"), "{to_node_id_param_name}")"""
@@ -217,9 +234,7 @@ class NeptuneIngestQueryBuilder:
         nodes: Iterable[Node],
     ) -> QueryBatch:
         """Generate a batch of queries to update nodes in the database in the same way of the same type."""
-        query = self.generate_update_node_operation_query_statement(
-            operation=operation, ref=GENERIC_NODE_REF_NAME
-        )
+        query = self.generate_update_node_operation_query_statement(operation=operation)
 
         params = [self.generate_update_node_operation_params(node) for node in nodes]
         return QueryBatch(query, params)
