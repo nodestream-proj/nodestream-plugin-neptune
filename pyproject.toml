@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "nodestream-plugin-neptune"
-version = "0.12.0rc1"
+version = "0.12.0"
 description = ""
 authors = ["Zach Probst <Zach_Probst@intuit.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-nodestream = { version = "0.12.0rc2", allow-prereleases = true} # TODO: Change this to 0.12 Final when it is ready
+nodestream = "^0.12.0"
 cymple = "^0.11.0"
 aiobotocore = "^2.12.0"
 botocore = ">=1.34.40"
