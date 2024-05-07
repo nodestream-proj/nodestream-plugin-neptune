@@ -29,7 +29,7 @@ from nodestream.schema.migrations.operations import (
     RenameRelationshipType,
 )
 
-from .neptune_connection import NeptuneDBConnection
+from .neptune_connection import NeptuneConnection
 
 LIST_MIGRATIONS_QUERY = "MATCH (m:__NodestreamMigration__) RETURN m.name as name"
 MARK_MIGRATION_AS_EXECUTED_QUERY = "MERGE (:__NodestreamMigration__ {name: $name})"
@@ -53,7 +53,7 @@ DROP_NODE_PROPERTY_FORMAT = "MATCH (n:`{node_type}`) REMOVE n.`{property_name}`"
 
 
 class NeptuneMigrator(OperationTypeRoutingMixin, Migrator):
-    def __init__(self, database_connection: NeptuneDBConnection) -> None:
+    def __init__(self, database_connection: NeptuneConnection) -> None:
         self.database_connection = database_connection
 
     async def mark_migration_as_executed(self, migration: Migration) -> None:

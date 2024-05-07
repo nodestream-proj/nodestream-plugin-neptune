@@ -23,10 +23,8 @@ from nodestream.schema.migrations.operations import (
     RenameRelationshipType,
 )
 
-from nodestream_plugin_neptune.neptune_migrator import (
-    NeptuneDBConnection,
-    NeptuneMigrator,
-)
+from nodestream_plugin_neptune.neptune_migrator import (NeptuneMigrator)
+from nodestream_plugin_neptune.neptune_connection import (NeptuneDBConnection)
 
 from .matchers import ran_query
 
@@ -50,7 +48,7 @@ async def test_execute_relationship_key_part_renamed(migrator):
     )
     await migrator.execute_operation(operation)
     expected_query = "MATCH ()-[r:`RELATIONSHIP_TYPE`]->() SET r.`new_key` = r.`old_key` REMOVE r.`old_key`"
-    migrator.database_connection.execute.assert_called_with(expected_query, None)
+    migrator.database_connection.execute.assert_called_with(expected_query, {})
 
 
 @pytest.mark.asyncio
@@ -62,7 +60,7 @@ async def test_execute_relationship_property_renamed(migrator):
     )
     await migrator.execute_operation(operation)
     expected_query = "MATCH ()-[r:`RELATIONSHIP_TYPE`]->() SET r.`new_prop` = r.`old_prop` REMOVE r.`old_prop`"
-    migrator.database_connection.execute.assert_called_with(expected_query, None)
+    migrator.database_connection.execute.assert_called_with(expected_query, {})
 
 
 @pytest.mark.asyncio
@@ -71,9 +69,7 @@ async def test_execute_relationship_key_extended(migrator):
         added_key_property="key", relationship_type="RELATIONSHIP_TYPE", default="foo"
     )
     await migrator.execute_operation(operation)
-    expected_query = (
-        "MATCH ()-[r:`RELATIONSHIP_TYPE`]->() SET r.`key` = coalesce(r.`key`, $value)",
-    )
+    expected_query = "MATCH ()-[r:`RELATIONSHIP_TYPE`]->() SET r.`key` = coalesce(r.`key`, $value)"
     migrator.database_connection.execute.assert_called_with(
         expected_query, {"value": "foo"}
     )
@@ -100,7 +96,7 @@ async def test_execute_relationship_property_dropped(migrator):
     )
     await migrator.execute_operation(operation)
     expected_query = "MATCH ()-[r:`RELATIONSHIP_TYPE`]->() REMOVE r.`prop`"
-    migrator.database_connection.execute.assert_called_with(expected_query, None)
+    migrator.database_connection.execute.assert_called_with(expected_query, {})
 
 
 @pytest.mark.asyncio
@@ -108,7 +104,7 @@ async def test_execute_relationship_type_renamed(migrator):
     operation = RenameRelationshipType(old_type="OLD_TYPE", new_type="NEW_TYPE")
     await migrator.execute_operation(operation)
     expected_query = "MATCH (n)-[r:`OLD_TYPE`]->(m) CREATE (n)-[r2:`NEW_TYPE`]->(m) SET r2 += r WITH r DELETE r"
-    migrator.database_connection.execute.assert_called_with(expected_query, None)
+    migrator.database_connection.execute.assert_called_with(expected_query, {})
 
 
 @pytest.mark.asyncio
@@ -122,7 +118,7 @@ async def test_execute_relationship_type_dropped(migrator):
     operation = DropRelationshipType(name="RELATIONSHIP_TYPE")
     await migrator.execute_operation(operation)
     expected_query = "MATCH ()-[r:`RELATIONSHIP_TYPE`]->() DELETE r"
-    migrator.database_connection.execute.assert_called_with(expected_query, None)
+    migrator.database_connection.execute.assert_called_with(expected_query, {})
 
 
 @pytest.mark.asyncio
@@ -130,7 +126,7 @@ async def test_execute_node_type_dropped(migrator):
     operation = DropNodeType(name="NodeType")
     await migrator.execute_operation(operation)
     expected_query = "MATCH (n:`NodeType`) DETACH DELETE n"
-    migrator.database_connection.execute.assert_called_with(expected_query, None)
+    migrator.database_connection.execute.assert_called_with(expected_query, {})
 
 
 @pytest.mark.asyncio
@@ -162,7 +158,7 @@ async def test_rename_node_property(migrator):
     expected_query = (
         "MATCH (n:`NodeType`) SET n.`new_prop` = n.`old_prop` REMOVE n.`old_prop`"
     )
-    migrator.database_connection.execute.assert_called_with(expected_query, None)
+    migrator.database_connection.execute.assert_called_with(expected_query, {})
 
 
 @pytest.mark.asyncio
@@ -170,7 +166,7 @@ async def test_rename_node_type(migrator):
     operation = RenameNodeType(old_type="OLD_TYPE", new_type="NEW_TYPE")
     await migrator.execute_operation(operation)
     expected_query = "MATCH (n:`OLD_TYPE`) SET n:`NEW_TYPE` REMOVE n:`OLD_TYPE`"
-    assert_that(migrator, ran_query(expected_query))
+    migrator.database_connection.execute.assert_called_with(expected_query, {})
 
 
 @pytest.mark.asyncio
@@ -195,7 +191,7 @@ async def test_drop_node_property(migrator):
     operation = DropNodeProperty(property_name="prop", node_type="NodeType")
     await migrator.execute_operation(operation)
     expected_query = "MATCH (n:`NodeType`) REMOVE n.`prop`"
-    migrator.database_connection.execute.assert_called_with(expected_query, None)
+    migrator.database_connection.execute.assert_called_with(expected_query, {})
 
 
 @pytest.mark.asyncio
@@ -218,5 +214,5 @@ async def test_node_key_renamed(migrator, mocker):
     )
     await migrator.execute_operation(operation)
     migrator.database_connection.execute.assert_called_with(
-        "MATCH (n:`NodeType`) SET n.`key` = n.`foo` REMOVE n.`foo`", None
+        "MATCH (n:`NodeType`) SET n.`key` = n.`foo` REMOVE n.`foo`", {}
     )
