@@ -23,6 +23,7 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         mode: str,
         host: str = None,
         graph_id: str = None,
+        include_label_in_id: bool = True,
         **client_kwargs
     ):
         """
@@ -34,6 +35,8 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
             Used with mode="database", specify the endpoint of the target Neptune database cluster
         graph_id : str, optional
             Used with mode="analytics", specify the graph identifier of the target Neptune Analytics graph
+        include_label_in_id : bool, optional
+            Sets if the labels should be included in generated node ids. Default is True
         client_kwargs : optional
             Additional keyword arguments to be passed to the boto3 client constructor
         """
@@ -42,7 +45,7 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
             mode=mode,
             host=host,
             graph_id=graph_id,
-            ingest_query_builder=NeptuneIngestQueryBuilder(),
+            ingest_query_builder=NeptuneIngestQueryBuilder(include_label_in_id),
             **client_kwargs
         )
 
