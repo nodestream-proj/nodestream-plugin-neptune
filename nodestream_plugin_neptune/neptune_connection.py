@@ -4,6 +4,7 @@ import random
 from abc import ABC, abstractmethod
 from logging import getLogger
 
+import botocore
 from aiobotocore.session import get_session
 
 
@@ -26,8 +27,16 @@ class NeptuneConnection(ABC):
                     exceptions=self._get_retryable_exceptions(client),
                 )
 
+            except botocore.exceptions.EndpointConnectionError as e:
+                self.logger.error(f"\nFailed to connect to database: {e}")
+                try:
+                    child_error = e.kwargs['error']
+                    self.logger.error(child_error)
+                except Exception:
+                    pass
+                #TODO: figure out how to stop/fail the pipeline without rethrowing.
             except Exception as e:
-                self.logger.exception(f"Unexpected error: {e} for query: {query_stmt}.")
+                self.logger.error(f"\nUnexpected error: {e} for query: {query_stmt}.")
 
         return response
 
