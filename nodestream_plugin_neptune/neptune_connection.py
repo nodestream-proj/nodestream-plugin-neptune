@@ -35,9 +35,7 @@ class NeptuneConnection(ABC):
                         self.logger.error(child_error)
                     except Exception:
                         pass
-                except botocore.exceptions.NoCredentialsError as e:
-                    self.logger.error(f"\nUnexpected error: {e}.")
-                except client.exceptions.AccessDeniedException as e:
+                except (botocore.exceptions.NoCredentialsError, client.exceptions.AccessDeniedException) as e:
                     self.logger.error(f"\nUnexpected error: {e}.")
                 except Exception as e:
                     self.logger.error(f"\nUnexpected error: {e} for query: {query_stmt}.")
