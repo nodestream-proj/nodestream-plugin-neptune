@@ -24,6 +24,7 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         host: str = None,
         graph_id: str = None,
         include_label_in_id: bool = True,
+        region: str = None,
         **client_kwargs
     ):
         """
@@ -37,6 +38,8 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
             Used with mode="analytics", specify the graph identifier of the target Neptune Analytics graph
         include_label_in_id : bool, optional
             Sets if the labels should be included in generated node ids. Default is True
+        region : str
+            Sets the region of the Neptune graph
         client_kwargs : optional
             Additional keyword arguments to be passed to the boto3 client constructor
         """
@@ -46,6 +49,7 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
             host=host,
             graph_id=graph_id,
             ingest_query_builder=NeptuneIngestQueryBuilder(include_label_in_id),
+            region=region,
             **client_kwargs
         )
 
@@ -55,15 +59,16 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         ingest_query_builder: NeptuneIngestQueryBuilder,
         host: str = None,
         graph_id: str = None,
+        region: str = None,
         **client_kwargs
     ) -> None:
         if mode == "database":
             self.connection = NeptuneDBConnection.from_configuration(
-                host=host, graph_id=graph_id, **client_kwargs
+                host=host, graph_id=graph_id, region=region, **client_kwargs
             )
         elif mode == "analytics":
             self.connection = NeptuneAnalyticsConnection.from_configuration(
-                graph_id=graph_id, host=host, **client_kwargs
+                graph_id=graph_id, host=host, region=region, **client_kwargs
             )
         else:
             raise ValueError("`mode` must be either 'database' or 'analytics'")
@@ -71,6 +76,7 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         self.mode = mode
         self.host = host
         self.graph_id = graph_id
+        self.region = region
         self.ingest_query_builder = ingest_query_builder
 
     def make_query_executor(self) -> QueryExecutor:

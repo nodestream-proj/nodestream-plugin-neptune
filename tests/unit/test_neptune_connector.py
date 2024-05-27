@@ -118,3 +118,37 @@ def test_include_label_in_id_default_true():
         host="testEndpoint.com"
     )
     assert_that(connector.ingest_query_builder.include_label_in_id, equal_to(True))
+
+def test_region_passed_to_client():
+    connector: NeptuneConnector = NeptuneConnector.from_file_data(
+        mode="database",
+        host="testEndpoint.com",
+        region="test-region"
+    )
+    assert_that(connector.connection.region, equal_to("test-region"))
+    assert_that(connector.region, equal_to("test-region"))
+
+def test_default_region():
+    connector: NeptuneConnector = NeptuneConnector.from_file_data(
+        mode="database",
+        host="testEndpoint.com"
+    )
+    assert_that(connector.connection.region, equal_to(None))
+    assert_that(connector.region, equal_to(None))
+
+def test_region_passed_to_client_analytics():
+    connector: NeptuneConnector = NeptuneConnector.from_file_data(
+        mode="analytics",
+        graph_id="testEndpoint.com",
+        region="test-region"
+    )
+    assert_that(connector.connection.region, equal_to("test-region"))
+    assert_that(connector.region, equal_to("test-region"))
+
+def test_default_region_analytics():
+    connector: NeptuneConnector = NeptuneConnector.from_file_data(
+        mode="analytics",
+        graph_id="testEndpoint.com"
+    )
+    assert_that(connector.connection.region, equal_to(None))
+    assert_that(connector.region, equal_to(None))
