@@ -4,6 +4,7 @@ import random
 from abc import ABC, abstractmethod
 from logging import getLogger
 
+import botocore
 from aiobotocore.session import get_session
 
 
@@ -17,19 +18,30 @@ class NeptuneConnection(ABC):
         max_retries = 3
         retry_delay = 1
 
-        async with self._create_boto_client() as client:
-            try:
-                response = await self.__retry(
-                    func=lambda: self.__attempt_query(client, query_stmt, parameters),
-                    max_retries=max_retries,
-                    delay=retry_delay,
-                    exceptions=self._get_retryable_exceptions(client),
-                )
+        try:
+            async with self._create_boto_client() as client:
+                try:
+                    response = await self.__retry(
+                        func=lambda: self.__attempt_query(client, query_stmt, parameters),
+                        max_retries=max_retries,
+                        delay=retry_delay,
+                        exceptions=self._get_retryable_exceptions(client),
+                    )
 
-            except Exception as e:
-                self.logger.exception(f"Unexpected error: {e} for query: {query_stmt}.")
-
-        return response
+                except botocore.exceptions.EndpointConnectionError as e:
+                    self.logger.error(f"\nFailed to connect to database: {e}")
+                    try:
+                        child_error = e.kwargs['error']
+                        self.logger.error(child_error)
+                    except Exception:
+                        pass
+                except (botocore.exceptions.NoCredentialsError, client.exceptions.AccessDeniedException) as e:
+                    self.logger.error(f"\nUnexpected error: {e}.")
+                except Exception as e:
+                    self.logger.error(f"\nUnexpected error: {e} for query: {query_stmt}.")
+            return response
+        except botocore.exceptions.NoRegionError as e:
+            self.logger.error(f"\nUnexpected error: {e}.")
 
     @abstractmethod
     def _create_boto_client(self):
