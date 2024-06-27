@@ -250,3 +250,47 @@ def test_relationship_update_generates_expected_queries(
         equal_to_ignoring_whitespace(expected_query.query_statement),
     )
     assert_that(query.parameters, equal_to(expected_query.parameters))
+
+
+def test_node_update_with_label_excluded_from_id():
+    query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder(include_label_in_id=False)
+
+    expected_query: QueryBatch = QueryBatch(
+        COMPLEX_NODE_TWO_EXPECTED_QUERY.query_statement,
+        [
+            {
+                "__node_id": "foo_bar",
+                **convert_timestamps(COMPLEX_NODE_TWO.properties),
+            }
+        ],
+    )
+
+    test_node_update_generates_expected_queries(
+        query_builder=query_builder,
+        node=COMPLEX_NODE_TWO,
+        expected_query=expected_query,
+        node_creation_rule=NodeCreationRule.EAGER
+    )
+
+
+def test_relationship_update_with_label_excluded_from_id():
+    query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder(include_label_in_id=False)
+
+    expected_query: QueryBatch = QueryBatch(
+        RELATIONSHIP_BETWEEN_TWO_NODES_EXPECTED_QUERY_WITH_MULTI_KEY_AND_CREATE.query_statement,
+        [
+            {
+                "__from_node_id": "foo",
+                "__to_node_id": "foo_bar",
+                **convert_timestamps(
+                    RELATIONSHIP_BETWEEN_TWO_NODES_WITH_MULTI_KEY_AND_CREATE.relationship.properties
+                ),
+            }
+        ],
+    )
+
+    test_relationship_update_generates_expected_queries(
+        query_builder=query_builder,
+        rel=RELATIONSHIP_BETWEEN_TWO_NODES_WITH_MULTI_KEY_AND_CREATE,
+        expected_query=expected_query,
+    )
