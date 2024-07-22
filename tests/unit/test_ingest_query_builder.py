@@ -81,7 +81,7 @@ SIMPLE_NODE_EXPECTED_QUERY = QueryBatch(
     'MERGE (node: TestType {`~id` : param.__node_id}) ON CREATE SET node = removeKeyFromMap(param, "__node_id") ON MATCH SET node += removeKeyFromMap(param, "__node_id")',
     [
         {
-            "__node_id": "TestType_foo",
+            "__node_id": "TestType_id:foo",
             **convert_timestamps(SIMPLE_NODE.properties),
         }
     ],
@@ -91,7 +91,7 @@ SIMPLE_NODE_EXPECTED_QUERY_ON_MATCH = QueryBatch(
     'MATCH (node: TestType {`~id` : param.__node_id}) SET node += removeKeyFromMap(param, "__node_id")',
     [
         {
-            "__node_id": "TestType_foo",
+            "__node_id": "TestType_id:foo",
             **convert_timestamps(SIMPLE_NODE.properties),
         }
     ],
@@ -108,7 +108,7 @@ COMPLEX_NODE_EXPECTED_QUERY = QueryBatch(
     'MERGE (node: ComplexType {`~id` : param.__node_id}) ON CREATE SET node = removeKeyFromMap(param, "__node_id") ON MATCH SET node += removeKeyFromMap(param, "__node_id") SET node:ExtraTypeOne:ExtraTypeTwo',
     [
         {
-            "__node_id": "ComplexType_foo",
+            "__node_id": "ComplexType_id:foo",
             **convert_timestamps(COMPLEX_NODE.properties),
         }
     ],
@@ -124,7 +124,7 @@ COMPLEX_NODE_TWO_EXPECTED_QUERY = QueryBatch(
     'MERGE (node: ComplexType {`~id` : param.__node_id}) ON CREATE SET node = removeKeyFromMap(param, "__node_id") ON MATCH SET node += removeKeyFromMap(param, "__node_id") SET node:ExtraTypeOne:ExtraTypeTwo',
     [
         {
-            "__node_id": "ComplexType_foo_bar",
+            "__node_id": "ComplexType_id_part1:foo_id_part2:bar",
             **convert_timestamps(COMPLEX_NODE_TWO.properties),
         }
     ],
@@ -141,7 +141,7 @@ COMPLEX_NODE_TWO_EXPECTED_QUERY = QueryBatch(
     ],
 )
 def test_node_update_generates_expected_queries(
-    query_builder, node, expected_query, node_creation_rule
+        query_builder, node, expected_query, node_creation_rule
 ):
     operation = OperationOnNodeIdentity(node.identity_shape, node_creation_rule)
     query = query_builder.generate_batch_update_node_operation_batch(operation, [node])
@@ -161,8 +161,8 @@ RELATIONSHIP_BETWEEN_TWO_NODES_EXPECTED_QUERY = QueryBatch(
     'ON MATCH SET rel += removeKeyFromMap(removeKeyFromMap(param, "__from_node_id"), "__to_node_id")',
     [
         {
-            "__from_node_id": "TestType_foo",
-            "__to_node_id": "ComplexType_foo",
+            "__from_node_id": "TestType_id:foo",
+            "__to_node_id": "ComplexType_id:foo",
             **convert_timestamps(
                 RELATIONSHIP_BETWEEN_TWO_NODES.relationship.properties
             ),
@@ -183,8 +183,8 @@ RELATIONSHIP_BETWEEN_TWO_NODES_EXPECTED_QUERY_WITH_MULTI_KEY = QueryBatch(
     'ON MATCH SET rel += removeKeyFromMap(removeKeyFromMap(param, "__from_node_id"), "__to_node_id")',
     [
         {
-            "__from_node_id": "TestType_foo",
-            "__to_node_id": "ComplexType_foo_bar",
+            "__from_node_id": "TestType_id:foo",
+            "__to_node_id": "ComplexType_id_part1:foo_id_part2:bar",
             **convert_timestamps(
                 RELATIONSHIP_BETWEEN_TWO_NODES_WITH_MULTI_KEY.relationship.properties
             ),
@@ -205,8 +205,8 @@ RELATIONSHIP_BETWEEN_TWO_NODES_EXPECTED_QUERY_WITH_MULTI_KEY_AND_CREATE = QueryB
     'SET rel += removeKeyFromMap(removeKeyFromMap(param, "__from_node_id"), "__to_node_id")',
     [
         {
-            "__from_node_id": "TestType_foo",
-            "__to_node_id": "ComplexType_foo_bar",
+            "__from_node_id": "TestType_id:foo",
+            "__to_node_id": "ComplexType_id_part1:foo_id_part2:bar",
             **convert_timestamps(
                 RELATIONSHIP_BETWEEN_TWO_NODES_WITH_MULTI_KEY_AND_CREATE.relationship.properties
             ),
@@ -230,7 +230,7 @@ RELATIONSHIP_BETWEEN_TWO_NODES_EXPECTED_QUERY_WITH_MULTI_KEY_AND_CREATE = QueryB
     ],
 )
 def test_relationship_update_generates_expected_queries(
-    query_builder, rel, expected_query
+        query_builder, rel, expected_query
 ):
     to_op = OperationOnNodeIdentity(rel.to_node.identity_shape, NodeCreationRule.EAGER)
     from_op = OperationOnNodeIdentity(
@@ -259,7 +259,7 @@ def test_node_update_with_label_excluded_from_id():
         COMPLEX_NODE_TWO_EXPECTED_QUERY.query_statement,
         [
             {
-                "__node_id": "foo_bar",
+                "__node_id": "id_part1:foo_id_part2:bar",
                 **convert_timestamps(COMPLEX_NODE_TWO.properties),
             }
         ],
@@ -280,8 +280,8 @@ def test_relationship_update_with_label_excluded_from_id():
         RELATIONSHIP_BETWEEN_TWO_NODES_EXPECTED_QUERY_WITH_MULTI_KEY_AND_CREATE.query_statement,
         [
             {
-                "__from_node_id": "foo",
-                "__to_node_id": "foo_bar",
+                "__from_node_id": "id:foo",
+                "__to_node_id": "id_part1:foo_id_part2:bar",
                 **convert_timestamps(
                     RELATIONSHIP_BETWEEN_TWO_NODES_WITH_MULTI_KEY_AND_CREATE.relationship.properties
                 ),
@@ -293,4 +293,49 @@ def test_relationship_update_with_label_excluded_from_id():
         query_builder=query_builder,
         rel=RELATIONSHIP_BETWEEN_TWO_NODES_WITH_MULTI_KEY_AND_CREATE,
         expected_query=expected_query,
+    )
+
+
+def test_generate_params_in_order():
+    COMPLEX_NODE_TWO = Node(
+        "ComplexType",
+        {"id_part1": "foo", "id_part2": "bar"}
+    )
+
+    query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder()
+    key_params = query_builder.generate_node_key_params(COMPLEX_NODE_TWO)
+    expected = {'__node_id': 'ComplexType_id_part1:foo_id_part2:bar'}
+    assert_that(
+        key_params,
+        equal_to(expected),
+    )
+
+
+def test_generate_params_reverse_order():
+    COMPLEX_NODE_TWO = Node(
+        "ComplexType",
+        {"id_part2": "bar", "id_part1": "foo"}
+    )
+
+    query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder()
+    key_params = query_builder.generate_node_key_params(COMPLEX_NODE_TWO)
+    expected = {'__node_id': 'ComplexType_id_part1:foo_id_part2:bar'}
+    assert_that(
+        key_params,
+        equal_to(expected),
+    )
+
+
+def test_generate_params_null_value():
+    COMPLEX_NODE_TWO = Node(
+        "ComplexType",
+        {'id_part1': None}
+    )
+
+    query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder()
+    key_params = query_builder.generate_node_key_params(COMPLEX_NODE_TWO)
+    expected = {'__node_id': 'ComplexType_id_part1:'}
+    assert_that(
+        key_params,
+        equal_to(expected),
     )
