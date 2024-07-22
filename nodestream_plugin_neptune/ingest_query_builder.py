@@ -174,7 +174,8 @@ class NeptuneIngestQueryBuilder:
 
         # Todo: What if no keys were given? Maybe let neptune decides.
         # On uniqueness and keys in Neptune, see Schema Constraints in https://docs.aws.amazon.com/neptune/latest/userguide/migration-compatibility.html
-        composite_key = "_".join([str(node.key_values[k]) for k in node.key_values])
+        composite_key = "_".join([f"{k}:{node.key_values[k]}" for k in sorted(node.key_values)])
+
         if self.include_label_in_id:
             composite_key = f"{node.type}_{composite_key}"
         return {generate_prefixed_param_name("id", name): composite_key}
