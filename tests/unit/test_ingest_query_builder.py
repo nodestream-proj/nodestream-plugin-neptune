@@ -297,13 +297,13 @@ def test_relationship_update_with_label_excluded_from_id():
 
 
 def test_generate_params_in_order():
-    COMPLEX_NODE_TWO = Node(
+    node = Node(
         "ComplexType",
         {"id_part1": "foo", "id_part2": "bar"}
     )
 
     query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder()
-    key_params = query_builder.generate_node_key_params(COMPLEX_NODE_TWO)
+    key_params = query_builder.generate_node_key_params(node)
     expected = {'__node_id': 'ComplexType_id_part1:foo_id_part2:bar'}
     assert_that(
         key_params,
@@ -312,13 +312,13 @@ def test_generate_params_in_order():
 
 
 def test_generate_params_reverse_order():
-    COMPLEX_NODE_TWO = Node(
+    node = Node(
         "ComplexType",
         {"id_part2": "bar", "id_part1": "foo"}
     )
 
     query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder()
-    key_params = query_builder.generate_node_key_params(COMPLEX_NODE_TWO)
+    key_params = query_builder.generate_node_key_params(node)
     expected = {'__node_id': 'ComplexType_id_part1:foo_id_part2:bar'}
     assert_that(
         key_params,
@@ -327,13 +327,13 @@ def test_generate_params_reverse_order():
 
 
 def test_generate_params_null_value():
-    COMPLEX_NODE_TWO = Node(
+    node = Node(
         "ComplexType",
         {'id_part1': None}
     )
 
     query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder()
-    key_params = query_builder.generate_node_key_params(COMPLEX_NODE_TWO)
+    key_params = query_builder.generate_node_key_params(node)
     expected = {'__node_id': 'ComplexType_id_part1:'}
     assert_that(
         key_params,
