@@ -35,7 +35,6 @@ jobs:
         run: |
           poetry run ruff nodestream_plugin_neptune tests
           poetry run black nodestream_plugin_neptune tests --check
-          poetry run isort nodestream_plugin_neptune tests --check-only
       - name: Run E2E Tests
         run: poetry run pytest -m "e2e"
         if: "runner.os == 'Linux'"
