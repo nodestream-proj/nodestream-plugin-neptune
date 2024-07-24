@@ -1,6 +1,5 @@
 from nodestream.databases.copy import TypeRetriever
-from nodestream.databases.database_connector import (DatabaseConnector,
-                                                     QueryExecutor)
+from nodestream.databases.database_connector import DatabaseConnector, QueryExecutor
 from nodestream.schema.migrations import Migrator
 
 from .ingest_query_builder import NeptuneIngestQueryBuilder
