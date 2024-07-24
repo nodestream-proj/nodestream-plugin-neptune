@@ -3,9 +3,10 @@ from hamcrest import assert_that, equal_to, instance_of
 
 from nodestream_plugin_neptune import NeptuneConnector
 from nodestream_plugin_neptune.neptune_connection import (
-    NeptuneAnalyticsConnection, NeptuneDBConnection)
-from nodestream_plugin_neptune.neptune_query_executor import \
-    NeptuneQueryExecutor
+    NeptuneAnalyticsConnection,
+    NeptuneDBConnection,
+)
+from nodestream_plugin_neptune.neptune_query_executor import NeptuneQueryExecutor
 from nodestream_plugin_neptune.type_retriever import NeptuneDBTypeRetriever
 
 
@@ -105,50 +106,45 @@ def test_analytics_must_not_have_host():
 
 def test_include_label_in_id():
     connector: NeptuneConnector = NeptuneConnector.from_file_data(
-        mode="database",
-        host="testEndpoint.com",
-        include_label_in_id=False
+        mode="database", host="testEndpoint.com", include_label_in_id=False
     )
     assert_that(connector.ingest_query_builder.include_label_in_id, equal_to(False))
 
 
 def test_include_label_in_id_default_true():
     connector: NeptuneConnector = NeptuneConnector.from_file_data(
-        mode="database",
-        host="testEndpoint.com"
+        mode="database", host="testEndpoint.com"
     )
     assert_that(connector.ingest_query_builder.include_label_in_id, equal_to(True))
 
+
 def test_region_passed_to_client():
     connector: NeptuneConnector = NeptuneConnector.from_file_data(
-        mode="database",
-        host="testEndpoint.com",
-        region="test-region"
+        mode="database", host="testEndpoint.com", region="test-region"
     )
     assert_that(connector.connection.region, equal_to("test-region"))
     assert_that(connector.region, equal_to("test-region"))
 
+
 def test_default_region():
     connector: NeptuneConnector = NeptuneConnector.from_file_data(
-        mode="database",
-        host="testEndpoint.com"
+        mode="database", host="testEndpoint.com"
     )
     assert_that(connector.connection.region, equal_to(None))
     assert_that(connector.region, equal_to(None))
 
+
 def test_region_passed_to_client_analytics():
     connector: NeptuneConnector = NeptuneConnector.from_file_data(
-        mode="analytics",
-        graph_id="testEndpoint.com",
-        region="test-region"
+        mode="analytics", graph_id="testEndpoint.com", region="test-region"
     )
     assert_that(connector.connection.region, equal_to("test-region"))
     assert_that(connector.region, equal_to("test-region"))
 
+
 def test_default_region_analytics():
     connector: NeptuneConnector = NeptuneConnector.from_file_data(
-        mode="analytics",
-        graph_id="testEndpoint.com"
+        mode="analytics", graph_id="testEndpoint.com"
     )
     assert_that(connector.connection.region, equal_to(None))
     assert_that(connector.region, equal_to(None))

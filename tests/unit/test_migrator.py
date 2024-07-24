@@ -1,14 +1,7 @@
 import pytest
-from hamcrest import assert_that
-
 from nodestream.schema.migrations.operations import (
-    AddAdditionalNodePropertyIndex,
-    AddAdditionalRelationshipPropertyIndex,
     AddNodeProperty,
     AddRelationshipProperty,
-    CreateNodeType,
-    DropAdditionalNodePropertyIndex,
-    DropAdditionalRelationshipPropertyIndex,
     DropNodeProperty,
     DropNodeType,
     DropRelationshipProperty,
@@ -23,10 +16,8 @@ from nodestream.schema.migrations.operations import (
     RenameRelationshipType,
 )
 
-from nodestream_plugin_neptune.neptune_migrator import (NeptuneMigrator)
-from nodestream_plugin_neptune.neptune_connection import (NeptuneDBConnection)
-
-from .matchers import ran_query
+from nodestream_plugin_neptune.neptune_connection import NeptuneDBConnection
+from nodestream_plugin_neptune.neptune_migrator import NeptuneMigrator
 
 
 @pytest.fixture
@@ -69,7 +60,9 @@ async def test_execute_relationship_key_extended(migrator):
         added_key_property="key", relationship_type="RELATIONSHIP_TYPE", default="foo"
     )
     await migrator.execute_operation(operation)
-    expected_query = "MATCH ()-[r:`RELATIONSHIP_TYPE`]->() SET r.`key` = coalesce(r.`key`, $value)"
+    expected_query = (
+        "MATCH ()-[r:`RELATIONSHIP_TYPE`]->() SET r.`key` = coalesce(r.`key`, $value)"
+    )
     migrator.database_connection.execute.assert_called_with(
         expected_query, {"value": "foo"}
     )

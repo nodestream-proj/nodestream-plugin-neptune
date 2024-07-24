@@ -7,11 +7,18 @@ from typing import Iterable
 
 from cymple.builder import NodeAfterMergeAvailable, NodeAvailable, QueryBuilder
 from nodestream.databases.query_executor import (
-    OperationOnNodeIdentity, OperationOnRelationshipIdentity)
-from nodestream.model import (Node, NodeCreationRule, Relationship,
-                              RelationshipCreationRule,
-                              RelationshipIdentityShape, RelationshipWithNodes,
-                              TimeToLiveConfiguration)
+    OperationOnNodeIdentity,
+    OperationOnRelationshipIdentity,
+)
+from nodestream.model import (
+    Node,
+    NodeCreationRule,
+    Relationship,
+    RelationshipCreationRule,
+    RelationshipIdentityShape,
+    RelationshipWithNodes,
+    TimeToLiveConfiguration,
+)
 from nodestream.schema.state import GraphObjectType
 from pandas import Timedelta, Timestamp
 
@@ -174,7 +181,9 @@ class NeptuneIngestQueryBuilder:
 
         # Todo: What if no keys were given? Maybe let neptune decides.
         # On uniqueness and keys in Neptune, see Schema Constraints in https://docs.aws.amazon.com/neptune/latest/userguide/migration-compatibility.html
-        composite_key = "_".join([f"{k}:{node.key_values[k] or ''}" for k in sorted(node.key_values)])
+        composite_key = "_".join(
+            [f"{k}:{node.key_values[k] or ''}" for k in sorted(node.key_values)]
+        )
 
         if self.include_label_in_id:
             composite_key = f"{node.type}_{composite_key}"

@@ -1,8 +1,7 @@
 from typing import AsyncGenerator
 
 from nodestream.databases.copy import TypeRetriever
-from nodestream.model import (Node, PropertySet, Relationship,
-                              RelationshipWithNodes)
+from nodestream.model import PropertySet, RelationshipWithNodes
 from nodestream.model.graph_objects import Node, Relationship
 
 from .extractor import NeptuneDBExtractor

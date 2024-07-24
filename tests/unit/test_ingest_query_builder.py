@@ -1,18 +1,24 @@
-import json
 from unittest.mock import patch
 
 import pytest
 from hamcrest import assert_that, equal_to, equal_to_ignoring_whitespace
 from nodestream.databases.query_executor import (
-    OperationOnNodeIdentity, OperationOnRelationshipIdentity)
-from nodestream.model import (Node, NodeCreationRule, PropertySet,
-                              Relationship, RelationshipCreationRule,
-                              RelationshipWithNodes, TimeToLiveConfiguration)
+    OperationOnNodeIdentity,
+    OperationOnRelationshipIdentity,
+)
+from nodestream.model import (
+    Node,
+    NodeCreationRule,
+    PropertySet,
+    Relationship,
+    RelationshipCreationRule,
+    RelationshipWithNodes,
+    TimeToLiveConfiguration,
+)
 from nodestream.schema import GraphObjectType
 from pandas import Timestamp
 
-from nodestream_plugin_neptune.ingest_query_builder import \
-    NeptuneIngestQueryBuilder
+from nodestream_plugin_neptune.ingest_query_builder import NeptuneIngestQueryBuilder
 from nodestream_plugin_neptune.query import Query, QueryBatch
 
 
@@ -141,7 +147,7 @@ COMPLEX_NODE_TWO_EXPECTED_QUERY = QueryBatch(
     ],
 )
 def test_node_update_generates_expected_queries(
-        query_builder, node, expected_query, node_creation_rule
+    query_builder, node, expected_query, node_creation_rule
 ):
     operation = OperationOnNodeIdentity(node.identity_shape, node_creation_rule)
     query = query_builder.generate_batch_update_node_operation_batch(operation, [node])
@@ -230,7 +236,7 @@ RELATIONSHIP_BETWEEN_TWO_NODES_EXPECTED_QUERY_WITH_MULTI_KEY_AND_CREATE = QueryB
     ],
 )
 def test_relationship_update_generates_expected_queries(
-        query_builder, rel, expected_query
+    query_builder, rel, expected_query
 ):
     to_op = OperationOnNodeIdentity(rel.to_node.identity_shape, NodeCreationRule.EAGER)
     from_op = OperationOnNodeIdentity(
@@ -253,7 +259,9 @@ def test_relationship_update_generates_expected_queries(
 
 
 def test_node_update_with_label_excluded_from_id():
-    query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder(include_label_in_id=False)
+    query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder(
+        include_label_in_id=False
+    )
 
     expected_query: QueryBatch = QueryBatch(
         COMPLEX_NODE_TWO_EXPECTED_QUERY.query_statement,
@@ -269,12 +277,14 @@ def test_node_update_with_label_excluded_from_id():
         query_builder=query_builder,
         node=COMPLEX_NODE_TWO,
         expected_query=expected_query,
-        node_creation_rule=NodeCreationRule.EAGER
+        node_creation_rule=NodeCreationRule.EAGER,
     )
 
 
 def test_relationship_update_with_label_excluded_from_id():
-    query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder(include_label_in_id=False)
+    query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder(
+        include_label_in_id=False
+    )
 
     expected_query: QueryBatch = QueryBatch(
         RELATIONSHIP_BETWEEN_TWO_NODES_EXPECTED_QUERY_WITH_MULTI_KEY_AND_CREATE.query_statement,
@@ -297,14 +307,11 @@ def test_relationship_update_with_label_excluded_from_id():
 
 
 def test_generate_params_in_order():
-    node = Node(
-        "ComplexType",
-        {"id_part1": "foo", "id_part2": "bar"}
-    )
+    node = Node("ComplexType", {"id_part1": "foo", "id_part2": "bar"})
 
     query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder()
     key_params = query_builder.generate_node_key_params(node)
-    expected = {'__node_id': 'ComplexType_id_part1:foo_id_part2:bar'}
+    expected = {"__node_id": "ComplexType_id_part1:foo_id_part2:bar"}
     assert_that(
         key_params,
         equal_to(expected),
@@ -312,14 +319,11 @@ def test_generate_params_in_order():
 
 
 def test_generate_params_reverse_order():
-    node = Node(
-        "ComplexType",
-        {"id_part2": "bar", "id_part1": "foo"}
-    )
+    node = Node("ComplexType", {"id_part2": "bar", "id_part1": "foo"})
 
     query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder()
     key_params = query_builder.generate_node_key_params(node)
-    expected = {'__node_id': 'ComplexType_id_part1:foo_id_part2:bar'}
+    expected = {"__node_id": "ComplexType_id_part1:foo_id_part2:bar"}
     assert_that(
         key_params,
         equal_to(expected),
@@ -327,14 +331,11 @@ def test_generate_params_reverse_order():
 
 
 def test_generate_params_null_value():
-    node = Node(
-        "ComplexType",
-        {'id_part1': None}
-    )
+    node = Node("ComplexType", {"id_part1": None})
 
     query_builder: NeptuneIngestQueryBuilder = NeptuneIngestQueryBuilder()
     key_params = query_builder.generate_node_key_params(node)
-    expected = {'__node_id': 'ComplexType_id_part1:'}
+    expected = {"__node_id": "ComplexType_id_part1:"}
     assert_that(
         key_params,
         equal_to(expected),

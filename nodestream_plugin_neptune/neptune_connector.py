@@ -4,8 +4,8 @@ from nodestream.schema.migrations import Migrator
 
 from .ingest_query_builder import NeptuneIngestQueryBuilder
 from .neptune_connection import NeptuneAnalyticsConnection, NeptuneDBConnection
-from .neptune_query_executor import NeptuneQueryExecutor
 from .neptune_migrator import NeptuneMigrator
+from .neptune_query_executor import NeptuneQueryExecutor
 
 
 class NeptuneConnector(DatabaseConnector, alias="neptune"):

@@ -22,7 +22,9 @@ class NeptuneConnection(ABC):
             async with self._create_boto_client() as client:
                 try:
                     response = await self.__retry(
-                        func=lambda: self.__attempt_query(client, query_stmt, parameters),
+                        func=lambda: self.__attempt_query(
+                            client, query_stmt, parameters
+                        ),
                         max_retries=max_retries,
                         delay=retry_delay,
                         exceptions=self._get_retryable_exceptions(client),
@@ -31,17 +33,22 @@ class NeptuneConnection(ABC):
                 except botocore.exceptions.EndpointConnectionError as e:
                     self.logger.error(f"\nFailed to connect to database: {e}")
                     try:
-                        child_error = e.kwargs['error']
+                        child_error = e.kwargs["error"]
                         self.logger.error(child_error)
                     except Exception:
                         pass
-                except (botocore.exceptions.NoCredentialsError, client.exceptions.AccessDeniedException) as e:
+                except (
+                    botocore.exceptions.NoCredentialsError,
+                    client.exceptions.AccessDeniedException,
+                ) as e:
                     self.logger.error(f"\nUnexpected error: {e}.")
                 except Exception as e:
-                    self.logger.error(f"\nUnexpected error: {e} for query: {query_stmt}.")
+                    self.logger.error(
+                        f"\nUnexpected error: {e} for query: {query_stmt}."
+                    )
             await client.close()
-            if response is not None and response.get('payload'):
-                response['payload'].close()
+            if response is not None and response.get("payload"):
+                response["payload"].close()
             return response
         except botocore.exceptions.NoRegionError as e:
             self.logger.error(f"\nUnexpected error: {e}.")
@@ -136,7 +143,9 @@ class NeptuneConnection(ABC):
 
 class NeptuneDBConnection(NeptuneConnection):
     @classmethod
-    def from_configuration(cls, host: str, graph_id: str = None, region: str = None, **client_kwargs):
+    def from_configuration(
+        cls, host: str, graph_id: str = None, region: str = None, **client_kwargs
+    ):
         if host is None:
             raise ValueError("A `host` must be specified when `mode` is 'database'.")
         if graph_id is not None:
@@ -154,7 +163,10 @@ class NeptuneDBConnection(NeptuneConnection):
 
     def _create_boto_client(self):
         return self.boto_session.create_client(
-            "neptunedata", endpoint_url=self.host, region_name=self.region, **self.client_kwargs
+            "neptunedata",
+            endpoint_url=self.host,
+            region_name=self.region,
+            **self.client_kwargs,
         )
 
     async def _execute_query(self, client, query_stmt: str, parameters):
@@ -178,7 +190,9 @@ class NeptuneDBConnection(NeptuneConnection):
 
 class NeptuneAnalyticsConnection(NeptuneConnection):
     @classmethod
-    def from_configuration(cls, graph_id: str, host: str = None, region: str = None, **client_kwargs):
+    def from_configuration(
+        cls, graph_id: str, host: str = None, region: str = None, **client_kwargs
+    ):
         if graph_id is None:
             raise ValueError(
                 "A `graph_id` must be specified when `mode` is 'analytics'."
@@ -196,7 +210,9 @@ class NeptuneAnalyticsConnection(NeptuneConnection):
         self.client_kwargs = client_kwargs
 
     def _create_boto_client(self):
-        return self.boto_session.create_client("neptune-graph", region_name=self.region, **self.client_kwargs)
+        return self.boto_session.create_client(
+            "neptune-graph", region_name=self.region, **self.client_kwargs
+        )
 
     async def _execute_query(self, client, query_stmt: str, parameters):
         self.logger.debug(
