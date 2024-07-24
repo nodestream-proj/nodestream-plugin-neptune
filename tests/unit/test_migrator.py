@@ -1,20 +1,10 @@
 import pytest
 from nodestream.schema.migrations.operations import (
-    AddNodeProperty,
-    AddRelationshipProperty,
-    DropNodeProperty,
-    DropNodeType,
-    DropRelationshipProperty,
-    DropRelationshipType,
-    NodeKeyExtended,
-    NodeKeyPartRenamed,
-    RelationshipKeyExtended,
-    RelationshipKeyPartRenamed,
-    RenameNodeProperty,
-    RenameNodeType,
-    RenameRelationshipProperty,
-    RenameRelationshipType,
-)
+    AddNodeProperty, AddRelationshipProperty, DropNodeProperty, DropNodeType,
+    DropRelationshipProperty, DropRelationshipType, NodeKeyExtended,
+    NodeKeyPartRenamed, RelationshipKeyExtended, RelationshipKeyPartRenamed,
+    RenameNodeProperty, RenameNodeType, RenameRelationshipProperty,
+    RenameRelationshipType)
 
 from nodestream_plugin_neptune.neptune_connection import NeptuneDBConnection
 from nodestream_plugin_neptune.neptune_migrator import NeptuneMigrator

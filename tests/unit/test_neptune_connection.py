@@ -2,9 +2,7 @@ import pytest
 from hamcrest import assert_that, equal_to
 
 from nodestream_plugin_neptune.neptune_connection import (
-    NeptuneAnalyticsConnection,
-    NeptuneDBConnection,
-)
+    NeptuneAnalyticsConnection, NeptuneDBConnection)
 
 
 @pytest.mark.asyncio
