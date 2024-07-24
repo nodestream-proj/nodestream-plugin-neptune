@@ -1,16 +1,33 @@
 from typing import List
 
-from nodestream.schema.migrations import (Migration, MigrationGraph, Migrator,
-                                          OperationTypeRoutingMixin)
+from nodestream.schema.migrations import (
+    Migration,
+    MigrationGraph,
+    Migrator,
+    OperationTypeRoutingMixin,
+)
 from nodestream.schema.migrations.operations import (
-    AddAdditionalNodePropertyIndex, AddAdditionalRelationshipPropertyIndex,
-    AddNodeProperty, AddRelationshipProperty, CreateNodeType,
-    CreateRelationshipType, DropAdditionalNodePropertyIndex,
-    DropAdditionalRelationshipPropertyIndex, DropNodeProperty, DropNodeType,
-    DropRelationshipProperty, DropRelationshipType, NodeKeyExtended,
-    NodeKeyPartRenamed, RelationshipKeyExtended, RelationshipKeyPartRenamed,
-    RenameNodeProperty, RenameNodeType, RenameRelationshipProperty,
-    RenameRelationshipType)
+    AddAdditionalNodePropertyIndex,
+    AddAdditionalRelationshipPropertyIndex,
+    AddNodeProperty,
+    AddRelationshipProperty,
+    CreateNodeType,
+    CreateRelationshipType,
+    DropAdditionalNodePropertyIndex,
+    DropAdditionalRelationshipPropertyIndex,
+    DropNodeProperty,
+    DropNodeType,
+    DropRelationshipProperty,
+    DropRelationshipType,
+    NodeKeyExtended,
+    NodeKeyPartRenamed,
+    RelationshipKeyExtended,
+    RelationshipKeyPartRenamed,
+    RenameNodeProperty,
+    RenameNodeType,
+    RenameRelationshipProperty,
+    RenameRelationshipType,
+)
 
 from .neptune_connection import NeptuneConnection
 
