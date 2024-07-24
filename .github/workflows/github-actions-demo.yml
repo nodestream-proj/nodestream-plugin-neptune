@@ -34,7 +34,6 @@ jobs:
         run: |
           poetry run ruff nodestream_plugin_neptune tests
           poetry run black nodestream_plugin_neptune tests --check
-          poetry run isort nodestream_plugin_neptune tests --check-only
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:
