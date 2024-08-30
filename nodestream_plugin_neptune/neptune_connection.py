@@ -42,8 +42,8 @@ class NeptuneConnection(ABC):
                     except Exception:
                         pass
                 except (
-                        botocore.exceptions.NoCredentialsError,
-                        self.client.exceptions.AccessDeniedException,
+                    botocore.exceptions.NoCredentialsError,
+                    self.client.exceptions.AccessDeniedException,
                 ) as e:
                     self.logger.error(f"\nUnexpected error: {e}.")
                 except Exception as e:
@@ -63,12 +63,12 @@ class NeptuneConnection(ABC):
 
     @abstractmethod
     async def _execute_query(
-            self, client, query_stmt: str, parameters: str
+        self, client, query_stmt: str, parameters: str
     ) -> dict | None:
         pass
 
     async def __attempt_query(
-            self, client, query_stmt: str, parameters: str
+        self, client, query_stmt: str, parameters: str
     ) -> dict | None:
         """
         Attempts to execute OC query `query_stmt` with `parameters` via `client`
@@ -152,7 +152,7 @@ class NeptuneConnection(ABC):
 class NeptuneDBConnection(NeptuneConnection):
     @classmethod
     def from_configuration(
-            cls, host: str, graph_id: str = None, region: str = None, **client_kwargs
+        cls, host: str, graph_id: str = None, region: str = None, **client_kwargs
     ):
         if host is None:
             raise ValueError("A `host` must be specified when `mode` is 'database'.")
@@ -201,7 +201,7 @@ class NeptuneDBConnection(NeptuneConnection):
 class NeptuneAnalyticsConnection(NeptuneConnection):
     @classmethod
     def from_configuration(
-            cls, graph_id: str, host: str = None, region: str = None, **client_kwargs
+        cls, graph_id: str, host: str = None, region: str = None, **client_kwargs
     ):
         if graph_id is None:
             raise ValueError(

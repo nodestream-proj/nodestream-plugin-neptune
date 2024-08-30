@@ -3,16 +3,9 @@ from logging import getLogger
 from typing import Iterable
 
 from nodestream.databases.query_executor import (
-    OperationOnNodeIdentity,
-    OperationOnRelationshipIdentity,
-    QueryExecutor,
-)
-from nodestream.model import (
-    IngestionHook,
-    Node,
-    RelationshipWithNodes,
-    TimeToLiveConfiguration,
-)
+    OperationOnNodeIdentity, OperationOnRelationshipIdentity, QueryExecutor)
+from nodestream.model import (IngestionHook, Node, RelationshipWithNodes,
+                              TimeToLiveConfiguration)
 
 from .ingest_query_builder import NeptuneIngestQueryBuilder
 from .neptune_connection import NeptuneConnection

@@ -1,12 +1,10 @@
 import pytest
 from hamcrest import assert_that, equal_to, instance_of
-
 from nodestream_plugin_neptune import NeptuneConnector
 from nodestream_plugin_neptune.neptune_connection import (
-    NeptuneAnalyticsConnection,
-    NeptuneDBConnection,
-)
-from nodestream_plugin_neptune.neptune_query_executor import NeptuneQueryExecutor
+    NeptuneAnalyticsConnection, NeptuneDBConnection)
+from nodestream_plugin_neptune.neptune_query_executor import \
+    NeptuneQueryExecutor
 from nodestream_plugin_neptune.type_retriever import NeptuneDBTypeRetriever
 
 

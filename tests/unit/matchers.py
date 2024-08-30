@@ -1,7 +1,6 @@
 from typing import Any
 
 from hamcrest.core.base_matcher import BaseMatcher
-
 from nodestream_plugin_neptune.query import Query
 
 
