@@ -3,13 +3,20 @@ from unittest.mock import patch
 import pytest
 from hamcrest import assert_that, equal_to, equal_to_ignoring_whitespace
 from nodestream.databases.query_executor import (
-    OperationOnNodeIdentity, OperationOnRelationshipIdentity)
-from nodestream.model import (Node, NodeCreationRule, PropertySet,
-                              Relationship, RelationshipCreationRule,
-                              RelationshipWithNodes, TimeToLiveConfiguration)
+    OperationOnNodeIdentity,
+    OperationOnRelationshipIdentity,
+)
+from nodestream.model import (
+    Node,
+    NodeCreationRule,
+    PropertySet,
+    Relationship,
+    RelationshipCreationRule,
+    RelationshipWithNodes,
+    TimeToLiveConfiguration,
+)
 from nodestream.schema import GraphObjectType
-from nodestream_plugin_neptune.ingest_query_builder import \
-    NeptuneIngestQueryBuilder
+from nodestream_plugin_neptune.ingest_query_builder import NeptuneIngestQueryBuilder
 from nodestream_plugin_neptune.query import Query, QueryBatch
 from pandas import Timestamp
 
