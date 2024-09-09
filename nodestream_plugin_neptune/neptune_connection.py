@@ -50,7 +50,6 @@ class NeptuneConnection(ABC):
                     self.logger.error(
                         f"\nUnexpected error: {e} for query: {query_stmt}."
                     )
-            # await self.client.close()
             if response is not None and response.get("payload"):
                 response["payload"].close()
             return response
