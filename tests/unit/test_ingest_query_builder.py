@@ -16,10 +16,9 @@ from nodestream.model import (
     TimeToLiveConfiguration,
 )
 from nodestream.schema import GraphObjectType
-from pandas import Timestamp
-
 from nodestream_plugin_neptune.ingest_query_builder import NeptuneIngestQueryBuilder
 from nodestream_plugin_neptune.query import Query, QueryBatch
+from pandas import Timestamp
 
 
 @pytest.fixture

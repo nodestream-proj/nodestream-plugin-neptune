@@ -100,3 +100,6 @@ class NeptuneQueryExecutor(QueryExecutor):
                     "Gathered Query Results",
                     extra=dict(**record, query=query.query_statement),
                 )
+
+    async def finish(self):
+        await self.database_connection.close()

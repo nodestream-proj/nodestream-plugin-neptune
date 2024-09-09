@@ -18,16 +18,20 @@ class NeptuneConnection(ABC):
         max_retries = 3
         retry_delay = 1
 
+        if self.client is None:
+            self.boto_context_manager = self._create_boto_client()
+            self.client = await self.boto_context_manager.__aenter__()
+
         try:
-            async with self._create_boto_client() as client:
+            if self.client is not None:
                 try:
                     response = await self.__retry(
                         func=lambda: self.__attempt_query(
-                            client, query_stmt, parameters
+                            self.client, query_stmt, parameters
                         ),
                         max_retries=max_retries,
                         delay=retry_delay,
-                        exceptions=self._get_retryable_exceptions(client),
+                        exceptions=self._get_retryable_exceptions(self.client),
                     )
 
                 except botocore.exceptions.EndpointConnectionError as e:
@@ -39,14 +43,13 @@ class NeptuneConnection(ABC):
                         pass
                 except (
                     botocore.exceptions.NoCredentialsError,
-                    client.exceptions.AccessDeniedException,
+                    self.client.exceptions.AccessDeniedException,
                 ) as e:
                     self.logger.error(f"\nUnexpected error: {e}.")
                 except Exception as e:
                     self.logger.error(
                         f"\nUnexpected error: {e} for query: {query_stmt}."
                     )
-            await client.close()
             if response is not None and response.get("payload"):
                 response["payload"].close()
             return response
@@ -140,6 +143,10 @@ class NeptuneConnection(ABC):
     def _get_retryable_exceptions(self):
         pass
 
+    async def close(self):
+        if self.boto_context_manager is not None:
+            await self.boto_context_manager.__aexit__(None, None, None)
+
 
 class NeptuneDBConnection(NeptuneConnection):
     @classmethod
@@ -160,6 +167,8 @@ class NeptuneDBConnection(NeptuneConnection):
         self.boto_session = get_session()
         self.region = region
         self.client_kwargs = client_kwargs
+        self.client = None
+        self.boto_context_manager = None
 
     def _create_boto_client(self):
         return self.boto_session.create_client(
@@ -208,6 +217,8 @@ class NeptuneAnalyticsConnection(NeptuneConnection):
         self.boto_session = get_session()
         self.region = region
         self.client_kwargs = client_kwargs
+        self.client = None
+        self.boto_context_manager = None
 
     def _create_boto_client(self):
         return self.boto_session.create_client(

@@ -1,6 +1,5 @@
 import pytest
 from hamcrest import assert_that, equal_to, instance_of
-
 from nodestream_plugin_neptune import NeptuneConnector
 from nodestream_plugin_neptune.neptune_connection import (
     NeptuneAnalyticsConnection,

@@ -15,7 +15,6 @@ from nodestream.schema.migrations.operations import (
     RenameRelationshipProperty,
     RenameRelationshipType,
 )
-
 from nodestream_plugin_neptune.neptune_connection import NeptuneDBConnection
 from nodestream_plugin_neptune.neptune_migrator import NeptuneMigrator
 

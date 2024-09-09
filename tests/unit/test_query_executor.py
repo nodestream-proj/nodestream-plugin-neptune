@@ -2,7 +2,6 @@ import pytest
 from hamcrest import assert_that
 from nodestream.model import TimeToLiveConfiguration
 from nodestream.schema import GraphObjectType
-
 from nodestream_plugin_neptune.neptune_connection import NeptuneConnection
 from nodestream_plugin_neptune.neptune_query_executor import NeptuneQueryExecutor
 from nodestream_plugin_neptune.query import Query, QueryBatch
@@ -79,3 +78,10 @@ async def test_execute_hook(query_executor, some_query, mocker):
     await query_executor.execute_hook(hook)
     hook.as_cypher_query_and_parameters.assert_called_once()
     assert_that(query_executor, ran_query(some_query))
+
+
+@pytest.mark.asyncio
+async def test_close_client_once(query_executor, mocker):
+    query_executor.database_connection.close = mocker.AsyncMock()
+    await query_executor.finish()
+    query_executor.database_connection.close.assert_awaited_once()
