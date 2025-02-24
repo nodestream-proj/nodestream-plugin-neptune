@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nodestream-plugin-neptune"
-version = "0.13.1"
+version = "0.14.0"
 description = ""
 authors = ["Zach Probst <Zach_Probst@intuit.com>"]
 readme = "README.md"
