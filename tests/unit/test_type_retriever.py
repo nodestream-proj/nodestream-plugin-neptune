@@ -4,8 +4,6 @@ from hamcrest import assert_that, equal_to, has_length
 from nodestream_plugin_neptune.neptune_connector import NeptuneConnector
 from nodestream_plugin_neptune.neptune_query_executor import NeptuneQueryExecutor
 from nodestream_plugin_neptune.type_retriever import (
-    COUNT_NODES_BY_TYPE_QUERY_FORMAT,
-    COUNT_RELATIONSHIPS_BY_TYPE_QUERY_FORMAT,
     FETCH_ALL_NODES_BY_TYPE_QUERY_FORMAT,
     FETCH_ALL_RELATIONSHIPS_BY_TYPE_QUERY_FORMAT,
     NeptuneDBTypeRetriever,

@@ -1,4 +1,3 @@
-import json
 from typing import AsyncGenerator
 
 from nodestream.databases.copy import TypeRetriever
@@ -48,7 +47,7 @@ class NeptuneDBTypeRetriever(TypeRetriever):
         return Node(
             type=type,
             properties=PropertySet(properties),
-            additional_types=tuple(l for l in labels if l != type),
+            additional_types=tuple(label for label in labels if label != type),
         )
 
     def map_neptune_relationship_to_nodestream_relationship(
