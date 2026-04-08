@@ -1,4 +1,3 @@
-import json
 from logging import getLogger
 from typing import Any, Dict, Optional
 
@@ -40,17 +39,23 @@ class NeptuneDBExtractor(Extractor):
         offset = 0
         executor: NeptuneQueryExecutor = self.connector.make_query_executor()
 
-        params = dict(**self.parameters, limit=self.limit, offset=offset)
-        self.logger.info(
-            "Running query on Neptune Database",
-            extra=dict(query=self.query, params=params),
-        )
+        while True:
+            params = dict(**self.parameters, limit=self.limit, offset=offset)
+            self.logger.info(
+                "Running query on Neptune Database",
+                extra=dict(query=self.query, params=params),
+            )
 
-        response = await executor.query(self.query, json.dumps(params))
+            response = await executor.query(self.query, params)
 
-        returned_records = []
-        if response:
-            returned_records = list(response["results"])
+            returned_records = []
+            if response:
+                returned_records = list(response["results"])
 
-        for item in returned_records:
-            yield item
+            if not returned_records:
+                break
+
+            for item in returned_records:
+                yield item
+
+            offset += self.limit

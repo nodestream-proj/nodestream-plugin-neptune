@@ -1,4 +1,3 @@
-import json
 from typing import AsyncGenerator
 
 from nodestream.databases.copy import TypeRetriever
@@ -30,30 +29,40 @@ RETURN count(r) AS count
 
 
 class NeptuneDBTypeRetriever(TypeRetriever):
-    def __init__(self, connector: NeptuneConnector) -> None:
+    def __init__(self, connector: NeptuneConnector, limit: int = 100) -> None:
         self.connector = connector
+        self.limit = limit
 
-    def map_neptune_node_to_nodestream_node(self, node: Node, type: str = None) -> Node:
-        # NOTE: I don't think this will work in all cases.
-        # But I think this will require shaking out in the future.
-        type = type or next(iter(node.labels))
+    def map_neptune_node_to_nodestream_node(self, node, type: str = None) -> Node:
+        labels = node.get("~labels", [])
+        # WORKAROUND: Convert list-valued properties to tuples so they are
+        # hashable. The nodestream core debouncer uses property values as
+        # dict keys and crashes on lists. Remove this once nodestream core
+        # handles unhashable property types.
+        properties = {
+            k: tuple(v) if isinstance(v, list) else v
+            for k, v in node.get("~properties", {}).items()
+        }
+        type = type or labels[0]
         return Node(
             type=type,
-            properties=PropertySet(node),
-            additional_types=tuple(label for label in node.labels if label != type),
+            properties=PropertySet(properties),
+            additional_types=tuple(label for label in labels if label != type),
         )
 
     def map_neptune_relationship_to_nodestream_relationship(
-        self, relationship: Relationship
+        self, relationship
     ) -> Relationship:
         return Relationship(
-            type=relationship.type,
-            properties=PropertySet(relationship),
+            type=relationship.get("~type", relationship.get("type", "")),
+            properties=PropertySet(relationship.get("~properties", {})),
         )
 
     def get_node_type_extractor(self, type: str) -> NeptuneDBExtractor:
         return NeptuneDBExtractor(
-            FETCH_ALL_NODES_BY_TYPE_QUERY_FORMAT.format(type=type), self.connector
+            FETCH_ALL_NODES_BY_TYPE_QUERY_FORMAT.format(type=type),
+            self.connector,
+            limit=self.limit,
         )
 
     def get_relationship_type_extractor(
@@ -66,13 +75,14 @@ class NeptuneDBTypeRetriever(TypeRetriever):
                 to_type=to_node_type,
             ),
             self.connector,
+            limit=self.limit,
         )
 
     async def _execute_count_query(self, query: str) -> int:
         from .neptune_query_executor import NeptuneQueryExecutor
 
         executor: NeptuneQueryExecutor = self.connector.make_query_executor()
-        response = await executor.query(query, json.dumps({}))
+        response = await executor.query(query, {})
         if response and response.get("results"):
             return response["results"][0]["count"]
         return 0

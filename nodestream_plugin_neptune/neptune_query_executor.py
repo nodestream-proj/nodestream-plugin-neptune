@@ -71,6 +71,9 @@ class NeptuneQueryExecutor(QueryExecutor):
         for i in range(0, len(parameters), partition_size):
             yield {"params": parameters[i : i + partition_size]}
 
+    async def query(self, query_stmt: str, parameters):
+        return await self.database_connection.execute(query_stmt, parameters)
+
     async def execute(self, query: Query, log_result: bool = False):
         query_stmt = query.query_statement
 

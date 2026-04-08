@@ -84,10 +84,10 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
             ingest_query_builder=self.ingest_query_builder,
         )
 
-    def make_type_retriever(self) -> TypeRetriever:
+    def make_type_retriever(self, **kwargs) -> TypeRetriever:
         from .type_retriever import NeptuneDBTypeRetriever
 
-        return NeptuneDBTypeRetriever(self)
+        return NeptuneDBTypeRetriever(self, **kwargs)
 
     def make_migrator(self) -> Migrator:
         return NeptuneMigrator(self.connection)
