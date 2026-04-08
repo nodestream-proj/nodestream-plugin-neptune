@@ -62,12 +62,16 @@ async def test_get_relationships_of_type_between(subject, mocker):
     subject.get_relationship_type_extractor = mocker.Mock()
     extractor = subject.get_relationship_type_extractor.return_value
     extractor.extract_records.return_value = async_generator(
-        {"a": {"~labels": ["Person"], "~properties": {"name": "Alice"}},
-         "b": {"~labels": ["Movie"], "~properties": {"title": "X"}},
-         "r": {"~type": "ACTED_IN", "~properties": {}}},
-        {"a": {"~labels": ["Person"], "~properties": {"name": "Bob"}},
-         "b": {"~labels": ["Movie"], "~properties": {"title": "Y"}},
-         "r": {"~type": "ACTED_IN", "~properties": {}}},
+        {
+            "a": {"~labels": ["Person"], "~properties": {"name": "Alice"}},
+            "b": {"~labels": ["Movie"], "~properties": {"title": "X"}},
+            "r": {"~type": "ACTED_IN", "~properties": {}},
+        },
+        {
+            "a": {"~labels": ["Person"], "~properties": {"name": "Bob"}},
+            "b": {"~labels": ["Movie"], "~properties": {"title": "Y"}},
+            "r": {"~type": "ACTED_IN", "~properties": {}},
+        },
     )
 
     results = [
