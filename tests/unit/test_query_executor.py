@@ -85,3 +85,22 @@ async def test_close_client_once(query_executor, mocker):
     query_executor.database_connection.close = mocker.AsyncMock()
     await query_executor.finish()
     query_executor.database_connection.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_query_method_exists_and_returns_response(query_executor):
+    """Verifies that NeptuneQueryExecutor has a query() method that returns results.
+
+    The extractor and type retriever both call executor.query(stmt, params) and
+    expect the raw response dict back. This method was removed during the connector
+    refactor (commit a62a1da) but its callers were never updated.
+    """
+    expected_response = {"results": [{"n": {"name": "Alice"}}]}
+    query_executor.database_connection.execute.return_value = expected_response
+
+    response = await query_executor.query(
+        "MATCH (n:Person) RETURN n LIMIT 1", '{"limit": 1}'
+    )
+
+    assert response == expected_response
+    query_executor.database_connection.execute.assert_awaited_once()
