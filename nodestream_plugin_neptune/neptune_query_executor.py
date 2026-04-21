@@ -20,13 +20,17 @@ from .query import Query, QueryBatch
 
 
 class NeptuneQueryExecutor(QueryExecutor):
+    DEFAULT_PARTITION_SIZE = 150
+
     def __init__(
         self,
         connection: NeptuneConnection,
         ingest_query_builder: NeptuneIngestQueryBuilder,
+        partition_size: int = DEFAULT_PARTITION_SIZE,
     ) -> None:
         self.database_connection = connection
         self.ingest_query_builder = ingest_query_builder
+        self.partition_size = partition_size
         self.logger = getLogger(self.__class__.__name__)
 
     async def upsert_nodes_in_bulk_with_same_operation(
@@ -60,16 +64,8 @@ class NeptuneQueryExecutor(QueryExecutor):
         await self.execute(Query(query_string, params))
 
     def _split_parameters(self, parameters: list):
-        """
-        Our current understanding is that a partition_size of 100 - 200
-        per batch request will yield the best results. Though this is not a hard rule.
-
-        More investigation on performance is needed.
-        """
-        partition_size = 150
-
-        for i in range(0, len(parameters), partition_size):
-            yield {"params": parameters[i : i + partition_size]}
+        for i in range(0, len(parameters), self.partition_size):
+            yield {"params": parameters[i : i + self.partition_size]}
 
     async def query(self, query_stmt: str, parameters):
         return await self.database_connection.execute(query_stmt, parameters)
