@@ -104,3 +104,30 @@ async def test_query_method_exists_and_returns_response(query_executor):
 
     assert response == expected_response
     query_executor.database_connection.execute.assert_awaited_once()
+
+
+def test_default_partition_size(query_executor):
+    assert query_executor.partition_size == NeptuneQueryExecutor.DEFAULT_PARTITION_SIZE
+
+
+def test_custom_partition_size(mocker):
+    executor = NeptuneQueryExecutor(
+        mocker.AsyncMock(NeptuneConnection),
+        mocker.Mock(),
+        partition_size=5000,
+    )
+    assert executor.partition_size == 5000
+
+
+def test_split_parameters_uses_partition_size(mocker):
+    executor = NeptuneQueryExecutor(
+        mocker.AsyncMock(NeptuneConnection),
+        mocker.Mock(),
+        partition_size=3,
+    )
+    params = [{"id": i} for i in range(7)]
+    chunks = list(executor._split_parameters(params))
+    assert len(chunks) == 3
+    assert len(chunks[0]["params"]) == 3
+    assert len(chunks[1]["params"]) == 3
+    assert len(chunks[2]["params"]) == 1

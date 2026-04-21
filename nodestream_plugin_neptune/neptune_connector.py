@@ -24,6 +24,7 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         graph_id: str = None,
         include_label_in_id: bool = True,
         region: str = None,
+        partition_size: int = NeptuneQueryExecutor.DEFAULT_PARTITION_SIZE,
         **client_kwargs
     ):
         """
@@ -39,6 +40,9 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
             Sets if the labels should be included in generated node ids. Default is True
         region : str
             Sets the region of the Neptune graph
+        partition_size : int, optional
+            Number of records per UNWIND query. Default is 150. Neptune Analytics
+            targets may benefit from larger values (e.g., 1000-5000).
         client_kwargs : optional
             Additional keyword arguments to be passed to the boto3 client constructor
         """
@@ -49,6 +53,7 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
             graph_id=graph_id,
             ingest_query_builder=NeptuneIngestQueryBuilder(include_label_in_id),
             region=region,
+            partition_size=partition_size,
             **client_kwargs
         )
 
@@ -59,6 +64,7 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         host: str = None,
         graph_id: str = None,
         region: str = None,
+        partition_size: int = NeptuneQueryExecutor.DEFAULT_PARTITION_SIZE,
         **client_kwargs
     ) -> None:
         if mode == "database":
@@ -76,12 +82,14 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
         self.host = host
         self.graph_id = graph_id
         self.region = region
+        self.partition_size = partition_size
         self.ingest_query_builder = ingest_query_builder
 
     def make_query_executor(self) -> QueryExecutor:
         return NeptuneQueryExecutor(
             connection=self.connection,
             ingest_query_builder=self.ingest_query_builder,
+            partition_size=self.partition_size,
         )
 
     def make_type_retriever(self, **kwargs) -> TypeRetriever:
