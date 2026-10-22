@@ -16,7 +16,10 @@ from nodestream.model import (
     TimeToLiveConfiguration,
 )
 from nodestream.schema import GraphObjectType
-from nodestream_plugin_neptune.ingest_query_builder import NeptuneIngestQueryBuilder
+from nodestream_plugin_neptune.ingest_query_builder import (
+    NeptuneIngestQueryBuilder,
+    _convert_unsupported_values,
+)
 from nodestream_plugin_neptune.query import Query, QueryBatch
 from pandas import Timestamp
 
@@ -339,3 +342,53 @@ def test_generate_params_null_value():
         key_params,
         equal_to(expected),
     )
+
+
+def test_convert_unsupported_values_multivalued_collapses_lossy():
+    # Multi-valued properties arrive as tuples (the type retriever converts
+    # source lists to tuples for debouncer hashability). Neptune openCypher
+    # CANNOT write an array value on either backend (NA: "Unsupported property
+    # value provided"; NDB: "Property value must be a simple literal"), and NA
+    # has no Gremlin endpoint, so there is no faithful write path. We collapse
+    # to the first value (lossy) and keep scalars untouched.
+    props = {"name": ("primary", "secondary"), "size": 2002}
+    converted = _convert_unsupported_values(props)
+    assert_that(converted["name"], equal_to("primary"))
+    assert_that(isinstance(converted["name"], str), equal_to(True))
+    assert_that(converted["size"], equal_to(2002))
+
+
+def test_convert_unsupported_values_list_collapses_lossy():
+    # Defensive: a raw list (not tuple) is collapsed the same way.
+    props = {"tags": ["first", "second", "third"]}
+    converted = _convert_unsupported_values(props)
+    assert_that(converted["tags"], equal_to("first"))
+
+
+def test_convert_unsupported_values_single_element_collapses_to_scalar():
+    props = {"name": ("only",)}
+    converted = _convert_unsupported_values(props)
+    assert_that(converted["name"], equal_to("only"))
+
+
+def test_convert_unsupported_values_empty_multivalued_dropped():
+    # An empty multi-valued property has no value to keep, so it is dropped
+    # (None removes the property on write).
+    props = {"tags": ()}
+    converted = _convert_unsupported_values(props)
+    assert_that(converted["tags"], equal_to(None))
+
+
+def test_convert_unsupported_values_logs_dropped_values(mocker):
+    # The lossy collapse must be visible: every multi-valued property that loses
+    # data logs a warning naming the property and the dropped values.
+    import nodestream_plugin_neptune.ingest_query_builder as iqb
+
+    warn = mocker.patch.object(iqb.logger, "warning")
+    _convert_unsupported_values(
+        {"name": ("keep", "drop1", "drop2")}, context="node of type 'Widget'"
+    )
+    warn.assert_called_once()
+    # The dropped values and context appear in the log args.
+    args = warn.call_args.args
+    assert_that("Widget" in str(args), equal_to(True))

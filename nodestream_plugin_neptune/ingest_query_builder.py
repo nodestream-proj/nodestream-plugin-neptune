@@ -3,6 +3,7 @@ import numbers
 import re
 from datetime import datetime
 from functools import cache, wraps
+from logging import getLogger
 from typing import Iterable
 
 from cymple.builder import NodeAfterMergeAvailable, NodeAvailable, QueryBuilder
@@ -29,6 +30,8 @@ GENERIC_FROM_NODE_REF_NAME = "from_node"
 GENERIC_TO_NODE_REF_NAME = "to_node"
 RELATIONSHIP_REF_NAME = "rel"
 PARAMETER_CORRECTION_REGEX = re.compile(r"\"(params.__\w+)\"")
+
+logger = getLogger(__name__)
 
 
 def correct_parameters(f):
@@ -109,15 +112,70 @@ def _make_relationship(rel_identity: RelationshipIdentityShape):
     return match_rel_query
 
 
-def _convert_unsupported_values(props: dict):
-    # Convert unsupported values.
-    # Due to the structure of our queries, all data must be passed as valid JSON.
+def _convert_unsupported_values(props: dict, context: str = None):
+    """Normalize property values into forms Neptune openCypher can write.
+
+    All values are sent as JSON parameters, but *valid JSON* is not the same as
+    *writable by Neptune openCypher*. In particular, Neptune openCypher cannot
+    write an array/list property value on EITHER backend:
+
+    - Neptune Analytics rejects it with
+      ``ValidationException: Unsupported property value provided``.
+    - Neptune Database rejects it with
+      ``BadRequestException: Property value must be a simple literal``.
+
+    This is a documented Neptune constraint, not a plugin choice: a property
+    value must be a simple scalar (Bool/Int/Long/Float/Double/String/DateTime).
+    Genuine multi-valued (set-cardinality) properties can only be created via
+    Gremlin or the bulk loader; openCypher ``SET`` has no array write path, and
+    Neptune Analytics has no Gremlin endpoint at all. See the AWS openCypher
+    data model docs and the ``neptune-no-array-props`` project memory.
+
+    Multi-valued source properties reach this function as tuples (the type
+    retriever converts source lists to tuples so nodestream core's debouncer can
+    hash property values). Because they cannot be written faithfully, we perform
+    a LOSSY collapse to the first value and log every occurrence so the data loss
+    is visible in a copy run. This is a known limitation (see the Neptune plugin
+    docs); use Gremlin or the bulk loader if faithful multi-valued fidelity is
+    required.
+    """
+    where = f" on {context}" if context else ""
     for k, v in props.items():
         # Timestamp and datetime are not valid json. Convert to POSIX timestamp instead.
         if isinstance(v, (Timestamp, datetime)):
             props[k] = v.timestamp()
         elif isinstance(v, numbers.Number) and not math.isfinite(v):
             raise ValueError("NaN and Infinity float values are not supported")
+        # Multi-valued (list/tuple) property: Neptune openCypher cannot write an
+        # array value, so collapse to a single scalar (lossy) and log it.
+        elif isinstance(v, (tuple, list)):
+            values = list(v)
+            if not values:
+                # No value to keep. Setting None removes the property (on NA a
+                # null SET deletes it; on NDB it is simply omitted).
+                props[k] = None
+                logger.warning(
+                    "Neptune cannot store multi-valued property %r%s: it was "
+                    "empty, so the property is being dropped. Neptune openCypher "
+                    "cannot write array values (known limitation).",
+                    k,
+                    where,
+                )
+            else:
+                kept, dropped = values[0], values[1:]
+                props[k] = kept
+                if dropped:
+                    logger.warning(
+                        "Neptune cannot store multi-valued property %r%s: keeping "
+                        "the first value %r and DROPPING %d other value(s) %r. "
+                        "Neptune openCypher cannot write array values (known "
+                        "limitation); this copy is lossy for this property.",
+                        k,
+                        where,
+                        kept,
+                        len(dropped),
+                        dropped,
+                    )
 
     return props
 
@@ -172,7 +230,9 @@ class NeptuneIngestQueryBuilder:
         """Generate the parameters for a query to update a node in the database."""
 
         node_props = {**self.generate_node_key_params(node), **node.properties}
-        node_props = _convert_unsupported_values(node_props)
+        node_props = _convert_unsupported_values(
+            node_props, context=f"node of type {node.type!r}"
+        )
 
         return node_props
 
@@ -226,7 +286,10 @@ class NeptuneIngestQueryBuilder:
     def generate_update_rel_params(self, rel: Relationship) -> dict:
         """Generate the parameters for a query to update a relationship in the database."""
 
-        return _convert_unsupported_values({**rel.key_values, **rel.properties})
+        return _convert_unsupported_values(
+            {**rel.key_values, **rel.properties},
+            context=f"relationship of type {rel.type!r}",
+        )
 
     def generate_update_rel_between_nodes_params(
         self, rel: RelationshipWithNodes
