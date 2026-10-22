@@ -7,6 +7,38 @@ from logging import getLogger
 import botocore
 from aiobotocore.session import get_session
 
+# The copy pipeline fans writes out across `--flush-concurrency` lanes (commonly
+# 16-64), and all lanes plus the reader share a single boto client. botocore's
+# default connection pool is only `max_pool_connections=10`, so beyond ~10 lanes
+# the extra ones block waiting for a free connection — the pipeline goes idle
+# waiting on the pool rather than on Neptune, and throughput stops scaling with
+# flush concurrency. Default to a pool large enough to cover typical fan-out.
+DEFAULT_MAX_POOL_CONNECTIONS = 64
+
+
+def _with_pool_config(client_kwargs: dict) -> dict:
+    """Ensure the boto client has an adequately sized connection pool.
+
+    Returns a copy of ``client_kwargs`` whose ``config`` carries a
+    ``max_pool_connections`` of at least ``DEFAULT_MAX_POOL_CONNECTIONS``. A
+    caller-supplied ``config`` is respected: only its pool size is raised (never
+    lowered), and its other settings are preserved.
+    """
+    kwargs = dict(client_kwargs)
+    existing = kwargs.get("config")
+    if existing is not None:
+        current = getattr(existing, "max_pool_connections", None) or 0
+        if current >= DEFAULT_MAX_POOL_CONNECTIONS:
+            return kwargs
+        kwargs["config"] = existing.merge(
+            botocore.config.Config(max_pool_connections=DEFAULT_MAX_POOL_CONNECTIONS)
+        )
+    else:
+        kwargs["config"] = botocore.config.Config(
+            max_pool_connections=DEFAULT_MAX_POOL_CONNECTIONS
+        )
+    return kwargs
+
 
 class NeptuneConnection(ABC):
     @property
@@ -18,9 +50,7 @@ class NeptuneConnection(ABC):
         max_retries = 3
         retry_delay = 1
 
-        if self.client is None:
-            self.boto_context_manager = self._create_boto_client()
-            self.client = await self.boto_context_manager.__aenter__()
+        await self._ensure_client()
 
         try:
             if self.client is not None:
@@ -55,6 +85,40 @@ class NeptuneConnection(ABC):
             return response
         except botocore.exceptions.NoRegionError as e:
             self.logger.error(f"\nUnexpected error: {e}.")
+
+    def _get_client_lock(self) -> "asyncio.Lock":
+        """Return the client-init lock, creating it lazily.
+
+        The lock is created on first use rather than in ``__init__`` so it binds
+        to the event loop that actually runs the queries. Constructing an
+        asyncio.Lock before the loop is running can attach it to the wrong loop
+        in some Python versions.
+        """
+        lock = getattr(self, "_client_lock", None)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._client_lock = lock
+        return lock
+
+    async def _ensure_client(self):
+        """Create the boto client exactly once, even under concurrency.
+
+        Many query coroutines run concurrently (the executor fans out partitions
+        with asyncio.gather, across many flush lanes). Without mutual exclusion
+        they would all observe ``self.client is None`` on the first burst and
+        each create their own client, resolving credentials dozens of times in
+        parallel and orphaning all but one client (leaking sessions/fds and
+        hammering the credential provider). The lock ensures a single client is
+        created and then reused by everyone else.
+        """
+        if self.client is not None:
+            return
+        async with self._get_client_lock():
+            # Re-check inside the lock: another coroutine may have created it
+            # while we were waiting.
+            if self.client is None:
+                self.boto_context_manager = self._create_boto_client()
+                self.client = await self.boto_context_manager.__aenter__()
 
     @abstractmethod
     def _create_boto_client(self):
@@ -169,13 +233,14 @@ class NeptuneDBConnection(NeptuneConnection):
         self.client_kwargs = client_kwargs
         self.client = None
         self.boto_context_manager = None
+        self._client_lock = None
 
     def _create_boto_client(self):
         return self.boto_session.create_client(
             "neptunedata",
             endpoint_url=self.host,
             region_name=self.region,
-            **self.client_kwargs,
+            **_with_pool_config(self.client_kwargs),
         )
 
     async def _execute_query(self, client, query_stmt: str, parameters):
@@ -219,10 +284,13 @@ class NeptuneAnalyticsConnection(NeptuneConnection):
         self.client_kwargs = client_kwargs
         self.client = None
         self.boto_context_manager = None
+        self._client_lock = None
 
     def _create_boto_client(self):
         return self.boto_session.create_client(
-            "neptune-graph", region_name=self.region, **self.client_kwargs
+            "neptune-graph",
+            region_name=self.region,
+            **_with_pool_config(self.client_kwargs),
         )
 
     async def _execute_query(self, client, query_stmt: str, parameters):
