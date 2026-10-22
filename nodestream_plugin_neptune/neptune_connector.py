@@ -92,10 +92,10 @@ class NeptuneConnector(DatabaseConnector, alias="neptune"):
             partition_size=self.partition_size,
         )
 
-    def make_type_retriever(self, **kwargs) -> TypeRetriever:
+    def make_type_retriever(self, schema=None, **kwargs) -> TypeRetriever:
         from .type_retriever import NeptuneDBTypeRetriever
 
-        return NeptuneDBTypeRetriever(self, **kwargs)
+        return NeptuneDBTypeRetriever(self, schema=schema, **kwargs)
 
     def make_migrator(self) -> Migrator:
         return NeptuneMigrator(self.connection)
