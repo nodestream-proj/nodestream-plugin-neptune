@@ -7,6 +7,7 @@ from nodestream_plugin_neptune.neptune_connector import NeptuneConnector
 from nodestream_plugin_neptune.neptune_query_executor import NeptuneQueryExecutor
 from nodestream_plugin_neptune.type_retriever import (
     DEFAULT_PAGE_SIZE,
+    EDGE_ID_PROPERTY,
     FETCH_ALL_NODES_BY_TYPE_QUERY_FORMAT,
     FETCH_ALL_RELATIONSHIPS_BY_TYPE_QUERY_FORMAT,
     RESERVED_ID,
@@ -395,20 +396,24 @@ def test_node_list_properties_converted_to_tuples():
     assert_that(result.properties["tags"], equal_to(("a", "b")))
 
 
-def test_relationship_exposes_native_id_when_present():
+def test_relationship_preserves_native_id_as_neptune_edge_id():
     rel = {"~id": "e-123", "~type": REL_TYPE, "~properties": {"score": 5}}
     result = map_neptune_relationship_to_nodestream_relationship(rel)
 
+    assert_that(EDGE_ID_PROPERTY, equal_to("neptuneEdgeId"))
     assert_that(result.type, equal_to(REL_TYPE))
-    assert_that(result.properties[RESERVED_ID], equal_to("e-123"))
+    assert_that(result.properties[EDGE_ID_PROPERTY], equal_to("e-123"))
     assert_that(result.properties["score"], equal_to(5))
+    # Neptune Analytics rejects custom edge ids; never emit a `~id` property.
+    assert_that(RESERVED_ID not in result.properties, equal_to(True))
     assert_that(RESERVED_TYPE not in result.properties, equal_to(True))
 
 
-def test_relationship_omits_native_id_when_absent():
+def test_relationship_omits_edge_id_when_absent():
     rel = {"~type": REL_TYPE, "~properties": {}}
     result = map_neptune_relationship_to_nodestream_relationship(rel)
 
+    assert_that(EDGE_ID_PROPERTY not in result.properties, equal_to(True))
     assert_that(RESERVED_ID not in result.properties, equal_to(True))
 
 

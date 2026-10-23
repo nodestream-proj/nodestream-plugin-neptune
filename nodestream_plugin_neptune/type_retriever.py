@@ -21,6 +21,11 @@ RESERVED_ID = "~id"
 RESERVED_LABEL = "~label"
 RESERVED_TYPE = "~type"
 
+# Property name that carries a source relationship's native `~id` on copy.
+# Neptune Analytics does not support custom edge ids.  Ids are extracted and
+# stored as a neptuneEdgeId property for provenance.
+EDGE_ID_PROPERTY = "neptuneEdgeId"
+
 # Bound on how many per-type count queries run concurrently while building the
 # histogram. Keeps the preflight from opening a connection per type on a wide
 # schema.
@@ -146,15 +151,18 @@ class NeptuneDBTypeRetriever(TypeRetriever):
     ) -> Relationship:
         """Map a Neptune relationship record to a nodestream ``Relationship``.
 
-        Exposes the native ``~id`` as selectable key material (optional, as with
-        nodes). We do NOT expose ``~type`` as a property: it is carried as the
+        The native ``~id`` (when present) is preserved as the plain property
+        ``neptuneEdgeId`` rather than ``~id``: Neptune Analytics does not support
+        custom edge ids, and writing ``~id`` through a property map stores a
+        literal property named ``~id`` that clashes with the reserved name.
+        We do NOT expose ``~type`` as a property: it is carried as the
         relationship ``type`` and a property named ``~type`` is reserved and
         unsafe to write.
         """
         rel_type = relationship.get("~type", relationship.get("type", ""))
         properties = dict(relationship.get("~properties", {}))
         if "~id" in relationship:
-            properties[RESERVED_ID] = relationship["~id"]
+            properties[EDGE_ID_PROPERTY] = relationship["~id"]
         return Relationship(
             type=rel_type,
             properties=PropertySet(properties),
