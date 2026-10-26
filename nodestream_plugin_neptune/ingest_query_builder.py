@@ -112,6 +112,58 @@ def _make_relationship(rel_identity: RelationshipIdentityShape):
     return match_rel_query
 
 
+# Values the plugin can send as parameters unchanged (plus ``None``). Datetimes
+# are converted to POSIX seconds; everything else is rejected, see below.
+_WRITABLE_SCALARS = (str, bool, int, float)
+
+_SUPPORTED_TYPES_HINT = (
+    "Supported value types are str, bool, int, float, None, and datetime "
+    "(written as POSIX seconds). Convert the value in the source or with a "
+    "pipeline step before it reaches the writer."
+)
+
+
+def _type_name(value) -> str:
+    """Fully qualified type name, e.g. ``neo4j.time.DateTime`` (bare for builtins)."""
+    cls = type(value)
+    if cls.__module__ == "builtins":
+        return cls.__qualname__
+    return f"{cls.__module__}.{cls.__qualname__}"
+
+
+def _collapse_multivalued(key: str, values, where: str):
+    """Collapse a multi-valued property to one value (lossy), logging the loss.
+
+    Returns the single value to write, or ``None`` when there was nothing to
+    keep (setting ``None`` removes the property on NA; NDB simply omits it).
+    """
+    values = list(values)
+    if not values:
+        logger.warning(
+            "Neptune cannot store multi-valued property %r%s: it was "
+            "empty, so the property is being dropped. Neptune openCypher "
+            "cannot write array values (known limitation).",
+            key,
+            where,
+        )
+        return None
+
+    kept, dropped = values[0], values[1:]
+    if dropped:
+        logger.warning(
+            "Neptune cannot store multi-valued property %r%s: keeping "
+            "the first value %r and DROPPING %d other value(s) %r. "
+            "Neptune openCypher cannot write array values (known "
+            "limitation); this copy is lossy for this property.",
+            key,
+            where,
+            kept,
+            len(dropped),
+            dropped,
+        )
+    return kept
+
+
 def _convert_unsupported_values(props: dict, context: str = None):
     """Normalize property values into forms Neptune openCypher can write.
 
@@ -138,44 +190,37 @@ def _convert_unsupported_values(props: dict, context: str = None):
     is visible in a copy run. This is a known limitation (see the Neptune plugin
     docs); use Gremlin or the bulk loader if faithful multi-valued fidelity is
     required.
+
+    Every value that survives this function must be something the plugin can
+    actually send: ``str``, ``bool``, ``int``, ``float`` or ``None`` (datetimes
+    are converted to POSIX seconds here). Anything else (a source driver's
+    own temporal, spatial or vector type, ``Decimal``, ``bytes``, ``date``,
+    ``timedelta``, a ``dict``) cannot be serialized for either backend. It
+    raises ``TypeError`` immediately, naming the property, rather than
+    failing later inside the connection, where errors are logged and the
+    batch is dropped while the run still exits 0.
     """
     where = f" on {context}" if context else ""
     for k, v in props.items():
+        # Multi-valued (list/tuple) property: Neptune openCypher cannot write an
+        # array value, so collapse to a single value (lossy) first. Everything
+        # below then applies to the value that will actually be written.
+        if isinstance(v, (tuple, list)):
+            v = _collapse_multivalued(k, v, where)
+
         # Timestamp and datetime are not valid json. Convert to POSIX timestamp instead.
         if isinstance(v, (Timestamp, datetime)):
-            props[k] = v.timestamp()
+            v = v.timestamp()
         elif isinstance(v, numbers.Number) and not math.isfinite(v):
             raise ValueError("NaN and Infinity float values are not supported")
-        # Multi-valued (list/tuple) property: Neptune openCypher cannot write an
-        # array value, so collapse to a single scalar (lossy) and log it.
-        elif isinstance(v, (tuple, list)):
-            values = list(v)
-            if not values:
-                # No value to keep. Setting None removes the property (on NA a
-                # null SET deletes it; on NDB it is simply omitted).
-                props[k] = None
-                logger.warning(
-                    "Neptune cannot store multi-valued property %r%s: it was "
-                    "empty, so the property is being dropped. Neptune openCypher "
-                    "cannot write array values (known limitation).",
-                    k,
-                    where,
-                )
-            else:
-                kept, dropped = values[0], values[1:]
-                props[k] = kept
-                if dropped:
-                    logger.warning(
-                        "Neptune cannot store multi-valued property %r%s: keeping "
-                        "the first value %r and DROPPING %d other value(s) %r. "
-                        "Neptune openCypher cannot write array values (known "
-                        "limitation); this copy is lossy for this property.",
-                        k,
-                        where,
-                        kept,
-                        len(dropped),
-                        dropped,
-                    )
+        elif v is not None and not isinstance(v, _WRITABLE_SCALARS):
+            raise TypeError(
+                f"Cannot write property {k!r}{where}: a value of type "
+                f"{_type_name(v)} is not supported by the Neptune plugin. "
+                f"{_SUPPORTED_TYPES_HINT}"
+            )
+
+        props[k] = v
 
     return props
 

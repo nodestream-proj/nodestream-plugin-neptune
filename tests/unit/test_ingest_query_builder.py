@@ -1,3 +1,6 @@
+import math
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
@@ -392,3 +395,104 @@ def test_convert_unsupported_values_logs_dropped_values(mocker):
     # The dropped values and context appear in the log args.
     args = warn.call_args.args
     assert_that("Widget" in str(args), equal_to(True))
+
+
+# ──────── Values the plugin cannot write must fail loudly, not vanish ─────────
+#
+# Neptune parameters travel as JSON (Neptune Database) or a botocore document
+# (Neptune Analytics). A value outside str/bool/int/float/None (and datetime,
+# which is converted) cannot be serialized. That used to be discovered inside
+# the connection's retry/swallow path, which logged "Unexpected error", dropped
+# the whole batch, and let the run exit 0. These tests pin the early, loud
+# failure that replaces it.
+
+# Stand-in for a source-driver type the plugin must not know about (the real
+# case is neo4j.time.DateTime leaking through a Neo4j -> Neptune copy).
+DriverDateTime = type("DateTime", (), {"__module__": "neo4j.time"})
+
+
+@pytest.mark.parametrize(
+    "value, type_name",
+    [
+        (Decimal("1.5"), "decimal.Decimal"),
+        (b"raw-bytes", "bytes"),
+        (date(2024, 1, 1), "datetime.date"),
+        (timedelta(days=1), "datetime.timedelta"),
+        (DriverDateTime(), "neo4j.time.DateTime"),
+        ({"nested": 1}, "dict"),
+        ({1, 2}, "set"),
+    ],
+)
+def test_convert_unsupported_values_rejects_unwritable_types(value, type_name):
+    with pytest.raises(TypeError) as excinfo:
+        _convert_unsupported_values({"when": value}, context="node of type 'Widget'")
+    message = str(excinfo.value)
+    assert_that("'when'" in message, equal_to(True))
+    assert_that("node of type 'Widget'" in message, equal_to(True))
+    assert_that(type_name in message, equal_to(True))
+    # The message tells the user what IS supported.
+    assert_that("str, bool, int, float" in message, equal_to(True))
+
+
+def test_convert_unsupported_values_accepts_writable_types_unchanged():
+    props = {"s": "text", "i": 7, "f": 1.5, "b": True, "n": None, "big": 2**40}
+    assert_that(_convert_unsupported_values(dict(props)), equal_to(props))
+
+
+def test_convert_unsupported_values_converts_datetimes_to_posix_seconds():
+    moment = datetime(2024, 4, 1, 23, 59, 59, tzinfo=timezone.utc)
+    converted = _convert_unsupported_values({"dt": moment, "ts": Timestamp(moment)})
+    assert_that(converted["dt"], equal_to(moment.timestamp()))
+    assert_that(converted["ts"], equal_to(moment.timestamp()))
+
+
+def test_convert_unsupported_values_validates_the_value_kept_by_collapse():
+    # The collapse keeps the FIRST element, so that element is what gets written
+    # and is what must be validated.
+    with pytest.raises(TypeError) as excinfo:
+        _convert_unsupported_values(
+            {"tags": (Decimal("1"), "second")}, context="node of type 'Widget'"
+        )
+    assert_that("decimal.Decimal" in str(excinfo.value), equal_to(True))
+
+    # A nested list kept by the collapse is still a list: not writable.
+    with pytest.raises(TypeError):
+        _convert_unsupported_values({"matrix": ((1, 2), (3, 4))})
+
+
+def test_convert_unsupported_values_converts_datetime_kept_by_collapse():
+    # Regression: a multi-valued datetime property used to be collapsed to a raw
+    # datetime that was never converted, and then failed in json.dumps.
+    moment = datetime(2024, 4, 1, tzinfo=timezone.utc)
+    converted = _convert_unsupported_values({"seen": (moment, moment)})
+    assert_that(converted["seen"], equal_to(moment.timestamp()))
+
+
+def test_convert_unsupported_values_still_rejects_non_finite_numbers():
+    with pytest.raises(ValueError):
+        _convert_unsupported_values({"x": math.nan})
+    with pytest.raises(ValueError):
+        _convert_unsupported_values({"x": (math.inf, 1.0)})
+
+
+def test_node_params_reject_unwritable_value_with_context():
+    node = Node(
+        "Widget",
+        PropertySet({"sku": "a-1"}),
+        PropertySet({"last_ingested_at": DriverDateTime()}),
+    )
+    with pytest.raises(TypeError) as excinfo:
+        NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
+    message = str(excinfo.value)
+    assert_that("'last_ingested_at'" in message, equal_to(True))
+    assert_that("node of type 'Widget'" in message, equal_to(True))
+    assert_that("neo4j.time.DateTime" in message, equal_to(True))
+
+
+def test_relationship_params_reject_unwritable_value_with_context():
+    rel = Relationship("KNOWS", properties=PropertySet({"since": Decimal("2020")}))
+    with pytest.raises(TypeError) as excinfo:
+        NeptuneIngestQueryBuilder().generate_update_rel_params(rel)
+    message = str(excinfo.value)
+    assert_that("'since'" in message, equal_to(True))
+    assert_that("relationship of type 'KNOWS'" in message, equal_to(True))
