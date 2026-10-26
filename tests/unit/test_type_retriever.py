@@ -1,8 +1,17 @@
 import pytest
 from hamcrest import assert_that, contains_inanyorder, equal_to, has_length
+from nodestream.databases.query_executor import OperationOnNodeIdentity
+from nodestream.model import (
+    Node,
+    NodeCreationRule,
+    PropertySet,
+    RelationshipCreationRule,
+    RelationshipWithNodes,
+)
 from nodestream.schema import Schema
 from nodestream.schema.state import Adjacency, AdjacencyCardinality, GraphObjectSchema
 
+from nodestream_plugin_neptune.ingest_query_builder import NeptuneIngestQueryBuilder
 from nodestream_plugin_neptune.neptune_connector import NeptuneConnector
 from nodestream_plugin_neptune.neptune_query_executor import NeptuneQueryExecutor
 from nodestream_plugin_neptune.type_retriever import (
@@ -314,14 +323,18 @@ async def test_relationship_extractor_pages_and_yields_ingestibles(connector, mo
 
 # ─────────────── Node mapping / native ~id exposure  ──────────────────────────
 #
-# The mapper exposes the native Neptune ~id as selectable key material so a copy
+# The mapper offers the native Neptune ~id as selectable key material so a copy
 # schema can key on ~id (unique) instead of a non-unique property.  ~id is optional
 # in Neptune (a UUID is minted on write when absent), so the mapper must handle its
 # absence. In nodestream 0.16 node identity comes from key_values, so when a schema
 # is supplied the declared keys are split out of properties into key_values.
+#
+# ~id is key material ONLY. Whatever is not consumed as a key must not carry it
+# along as a property: Neptune Database rejects ~id in a SET map (the whole batch
+# is lost) and Neptune Analytics / Neo4j would store a literal "~id" property.
 
 
-def test_node_exposes_native_id_in_properties_without_schema():
+def test_node_never_carries_native_id_as_property_without_schema():
     node = {
         "~id": "node-42",
         "~labels": [NODE_TYPE_B],
@@ -329,7 +342,7 @@ def test_node_exposes_native_id_in_properties_without_schema():
     }
     result = map_neptune_node_to_nodestream_node(node, type=NODE_TYPE_B)
 
-    assert_that(result.properties[RESERVED_ID], equal_to("node-42"))
+    assert_that(RESERVED_ID not in result.properties, equal_to(True))
     assert_that(result.properties["name"], equal_to("sample"))
     assert_that(result.properties["size"], equal_to(2014))
     assert_that(dict(result.key_values), equal_to({}))
@@ -345,7 +358,7 @@ def test_node_keyed_on_native_id_populates_key_values():
     assert_that(result.has_valid_id, equal_to(True))
 
 
-def test_node_keyed_on_user_property_keeps_native_id_in_properties():
+def test_node_keyed_on_user_property_drops_native_id():
     schema = Schema()
     widget = GraphObjectSchema(NODE_TYPE_A)
     widget.add_key("id")
@@ -358,7 +371,9 @@ def test_node_keyed_on_user_property_keeps_native_id_in_properties():
     result = map_neptune_node_to_nodestream_node(node, type=NODE_TYPE_A, schema=schema)
 
     assert_that(dict(result.key_values), equal_to({"id": 12345}))
-    assert_that(result.properties[RESERVED_ID], equal_to("node-7"))
+    # The native id is not the key here, so it is dropped, not left as a property.
+    assert_that(RESERVED_ID not in result.properties, equal_to(True))
+    assert_that(result.properties["label"], equal_to("example"))
 
 
 def test_node_does_not_expose_label_as_property():
@@ -463,3 +478,159 @@ async def test_warning_fires_once_per_type(subject, connector, mocker):
     await subject.build_histogram()
 
     assert_that(warn.call_count, equal_to(3))
+
+
+# ──────── `~id` must never reach a Neptune SET clause (PR #41 review) ─────────
+#
+# Neptune Database rejects any write whose SET map carries `~id`
+# (BadRequestException: "'~id' as a property in SET clause is not supported"),
+# losing the whole UNWIND batch. Neptune Analytics accepts it but stores a
+# literal property named `~id`. These tests drive the real mapper and the real
+# query builder end to end and assert that what the COPY path produces never
+# puts `~id` in the per-row write params (the map that becomes
+# `SET node = ...` / `SET r = ...`). A backstop for non-copy sources lives in
+# the query builder's own tests.
+
+COPY_NODE_TYPE = "CopyTestPerson"
+COPY_REL_TYPE = "CopyTestKNOWS"
+
+NDB_NODE_RECORD = {
+    "~id": "src-native-id-1",
+    "~labels": [COPY_NODE_TYPE],
+    "~properties": {"name": "Ada", "age": 36},
+}
+
+
+def _schema_keyed_on(key: str) -> Schema:
+    schema = Schema()
+    person = GraphObjectSchema(COPY_NODE_TYPE)
+    person.add_key(key)
+    schema.put_node_type(person)
+    return schema
+
+
+def _node_write_params(node) -> dict:
+    operation = OperationOnNodeIdentity(node.identity_shape, NodeCreationRule.EAGER)
+    batch = NeptuneIngestQueryBuilder().generate_batch_update_node_operation_batch(
+        operation, [node]
+    )
+    (params,) = batch.parameters
+    return params
+
+
+def _relationship_write_params(relationship) -> dict:
+    rel = RelationshipWithNodes(
+        from_node=Node(COPY_NODE_TYPE, PropertySet({"name": "Ada"}), PropertySet({})),
+        to_node=Node(COPY_NODE_TYPE, PropertySet({"name": "Bob"}), PropertySet({})),
+        relationship=relationship,
+        relationship_creation_rule=RelationshipCreationRule.EAGER,
+    )
+    return NeptuneIngestQueryBuilder().generate_update_rel_between_nodes_params(rel)
+
+
+def test_copy_keyed_on_native_id_does_not_write_tilde_id():
+    """Control: keying on `~id` moves it into key_values, out of the SET map."""
+    node = map_neptune_node_to_nodestream_node(
+        NDB_NODE_RECORD, type=COPY_NODE_TYPE, schema=_schema_keyed_on(RESERVED_ID)
+    )
+    params = _node_write_params(node)
+
+    assert_that(RESERVED_ID not in params, equal_to(True))
+    assert_that("src-native-id-1" in params["__node_id"], equal_to(True))
+    assert_that(params["name"], equal_to("Ada"))
+
+
+def test_copy_keyed_on_arbitrary_property_does_not_write_tilde_id():
+    """Cole's case: key on `name`; the source `~id` must not reach the SET map."""
+    node = map_neptune_node_to_nodestream_node(
+        NDB_NODE_RECORD, type=COPY_NODE_TYPE, schema=_schema_keyed_on("name")
+    )
+    params = _node_write_params(node)
+
+    assert_that(RESERVED_ID not in params, equal_to(True))
+    assert_that(params["__node_id"], equal_to(f"{COPY_NODE_TYPE}_name:Ada"))
+    assert_that(params["age"], equal_to(36))
+
+
+def test_copy_without_schema_does_not_write_tilde_id():
+    """No schema: nothing is moved into key_values, so `~id` stays in properties."""
+    node = map_neptune_node_to_nodestream_node(NDB_NODE_RECORD, type=COPY_NODE_TYPE)
+    params = _node_write_params(node)
+
+    assert_that(RESERVED_ID not in params, equal_to(True))
+
+
+def test_copied_relationship_does_not_write_tilde_id():
+    """Regression guard for the neptuneEdgeId change."""
+    relationship = map_neptune_relationship_to_nodestream_relationship(
+        {"~id": "src-edge-1", "~type": COPY_REL_TYPE, "~properties": {"since": 2020}}
+    )
+    params = _relationship_write_params(relationship)
+
+    assert_that(RESERVED_ID not in params, equal_to(True))
+    assert_that(params[EDGE_ID_PROPERTY], equal_to("src-edge-1"))
+
+
+# ──────── Declared keys that the source nodes do not store (PR #41 review) ────────
+#
+# Nodes written by this plugin keep their key only inside the composite ~id, not
+# as properties. A copy schema keyed on a property the nodes do not store gets
+# nodes with no identity, which nodestream core skips at DEBUG level: they vanish
+# without a trace. The mapper therefore warns, once per type.
+
+
+@pytest.fixture
+def fresh_missing_key_warnings():
+    import nodestream_plugin_neptune.type_retriever as tr
+
+    tr._warn_missing_keys.cache_clear()
+    yield tr
+    tr._warn_missing_keys.cache_clear()
+
+
+def test_missing_declared_key_warns_with_type_and_key(
+    fresh_missing_key_warnings, mocker
+):
+    warn = mocker.patch.object(fresh_missing_key_warnings.logger, "warning")
+    node = {"~id": "n-1", "~labels": [COPY_NODE_TYPE], "~properties": {"age": 36}}
+
+    result = map_neptune_node_to_nodestream_node(
+        node, type=COPY_NODE_TYPE, schema=_schema_keyed_on("name")
+    )
+
+    warn.assert_called_once()
+    logged = warn.call_args.args[0] % warn.call_args.args[1:]
+    assert_that(COPY_NODE_TYPE in logged, equal_to(True))
+    assert_that("'name'" in logged, equal_to(True))
+    assert_that("'~id'" in logged, equal_to(True))
+    # The node is still produced (core decides what to do with it); it just has
+    # no identity, and the native id still does not leak into its properties.
+    assert_that(dict(result.key_values), equal_to({}))
+    assert_that(RESERVED_ID not in result.properties, equal_to(True))
+
+
+def test_missing_declared_key_warns_once_per_type_not_per_node(
+    fresh_missing_key_warnings, mocker
+):
+    warn = mocker.patch.object(fresh_missing_key_warnings.logger, "warning")
+    schema = _schema_keyed_on("name")
+    for i in range(50):
+        node = {"~id": f"n-{i}", "~labels": [COPY_NODE_TYPE], "~properties": {}}
+        map_neptune_node_to_nodestream_node(node, type=COPY_NODE_TYPE, schema=schema)
+
+    warn.assert_called_once()
+
+
+def test_no_warning_when_declared_keys_are_present(fresh_missing_key_warnings, mocker):
+    warn = mocker.patch.object(fresh_missing_key_warnings.logger, "warning")
+    node = {"~id": "n-1", "~labels": [COPY_NODE_TYPE], "~properties": {"name": "Ada"}}
+
+    result = map_neptune_node_to_nodestream_node(
+        node, type=COPY_NODE_TYPE, schema=_schema_keyed_on("name")
+    )
+    map_neptune_node_to_nodestream_node(
+        NDB_NODE_RECORD, type=COPY_NODE_TYPE, schema=_schema_keyed_on(RESERVED_ID)
+    )
+
+    warn.assert_not_called()
+    assert_that(dict(result.key_values), equal_to({"name": "Ada"}))

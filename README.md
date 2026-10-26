@@ -44,3 +44,14 @@ nodestream copy --from my-neptune-db --to my-neptune-analytics --node Person --r
 
 Copy identity is derived from each type's key properties. To key on Neptune's
 native element id, declare `~id` as the key in your schema.
+
+A few things follow from how Neptune stores keys:
+
+- Nodes written by this plugin keep their key only inside the native `~id`
+  (`Label_key:value`), not as properties. To copy such a graph, key on `~id`, or
+  also store the key values as properties on the source nodes. If a declared key
+  is not stored as a property, a warning is logged once for that node type and
+  nodestream skips (or only partially identifies) those nodes.
+- The native `~id` is used only as a key. If you key on anything else it is not
+  copied, because Neptune Database cannot write `~id` as a property.
+- A relationship's native id is preserved as the property `neptuneEdgeId`.

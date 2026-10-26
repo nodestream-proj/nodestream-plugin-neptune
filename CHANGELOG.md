@@ -18,6 +18,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   property `neptuneEdgeId` (the same name Neptune Analytics' import uses for
   preserved edge ids) instead of a literal `~id` property. Neptune Analytics
   does not support custom edge ids and assigns its own.
+- On copy, a source node's native `~id` is used only as key material. When the
+  schema keys on anything else it is now dropped instead of being left in the
+  node's properties, where Neptune Database rejected the whole write batch
+  (`'~id' as a property in SET clause is not supported`) and Neptune Analytics
+  and Neo4j stored it as a literal `~id` property.
+- A warning is logged, once per node type, when a declared key property is not
+  stored on the source nodes; nodestream skips such nodes without a trace
+  otherwise.
+
+### Fixed
+
+- The playground project's `test` pipeline failed to load ("Failed to Initialize
+  Component in Declarative Pipeline") because it used the `FileExtractor`
+  argument form removed in nodestream 0.13; it now uses `sources:`. The
+  playground targets also set `region`.
 
 ## [0.14.0] - Initial documented release
 

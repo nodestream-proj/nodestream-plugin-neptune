@@ -1,4 +1,5 @@
 import asyncio
+from functools import lru_cache
 from logging import getLogger
 from typing import Any, AsyncGenerator, Optional
 
@@ -13,6 +14,30 @@ from .neptune_connector import NeptuneConnector
 from .neptune_query_executor import NeptuneQueryExecutor
 
 logger = getLogger(__name__)
+
+
+@lru_cache(maxsize=None)
+def _warn_missing_keys(node_type: str, missing_keys: tuple) -> None:
+    """Warn, once per node type and set of keys, that declared keys are absent.
+
+    Neptune nodes written by this plugin keep their key only inside the native
+    ``~id`` (``Label_key:value``), not as properties. A copy schema that keys on a
+    property which the source nodes do not actually store therefore gets nodes
+    with no (or only a partial) identity. nodestream core skips a node with no key
+    values at DEBUG level and builds a partial identity from whatever keys are
+    present, so without this warning the nodes vanish or merge silently.
+    Cached so a large copy logs it once rather than once per node.
+    """
+    logger.warning(
+        "Node type %r declares key(s) %s that are not stored as properties on the "
+        "Neptune nodes. Nodes missing every declared key have no identity and "
+        "nodestream skips them; nodes missing only some keys get an incomplete "
+        "identity and distinct nodes can merge. Key this type on '~id' in your "
+        "schema, or store the key values as properties on the source nodes.",
+        node_type,
+        ", ".join(repr(k) for k in missing_keys),
+    )
+
 
 # Reserved Neptune field names. `~`-prefixed names are reserved by Neptune and
 # cannot collide with a real user property. These are optional on write: Neptune
@@ -98,9 +123,11 @@ class NeptuneDBTypeRetriever(TypeRetriever):
           keys and crashes on lists. The write path converts them back to lists.
         - The native reserved id is exposed under the ``~id`` spelling (optional:
           Neptune mints a UUID on write when absent) so a copy schema can key on
-          it. We do NOT expose ``~label``: the label is carried as the node
-          ``type`` and a property literally named ``~label`` is reserved and
-          unsafe to write.
+          it. It is key material only: ``map_neptune_node_to_nodestream_node``
+          removes it from the properties unless the schema consumed it as a key,
+          because ``~id`` must never reach a write (see that method). We do NOT
+          expose ``~label``: the label is carried as the node ``type`` and a
+          property literally named ``~label`` is reserved and unsafe to write.
         """
         properties = {
             k: tuple(v) if isinstance(v, list) else v
@@ -123,8 +150,16 @@ class NeptuneDBTypeRetriever(TypeRetriever):
         can synthesize a stable identity (nodestream 0.16 derives node identity
         from ``key_values``, not ``properties``). A schema that keys on ``~id``
         therefore makes the native Neptune id the node identity. When no schema
-        is supplied (unit tests, ad-hoc mapping) all fields stay in
+        is supplied (unit tests, ad-hoc mapping) the other fields stay in
         ``properties`` and ``key_values`` is left empty.
+
+        The native ``~id`` is only ever key material. If the schema keys on
+        something else, or there is no schema, it is dropped rather than left in
+        ``properties``: Neptune Database rejects ``~id`` in a ``SET`` map (losing
+        the whole batch), Neptune Analytics stores a literal property named
+        ``~id``, and other targets such as Neo4j would store it too. Declared key
+        properties that the node does not actually store are reported once per
+        type, because core would otherwise skip or merge those nodes silently.
         """
         labels = node.get("~labels", [])
         properties = NeptuneDBTypeRetriever._node_properties(node)
@@ -134,9 +169,17 @@ class NeptuneDBTypeRetriever(TypeRetriever):
         if schema is not None and type is not None:
             node_schema = schema.get_node_type_by_name(type)
             if node_schema is not None:
+                missing_keys = []
                 for key_name in node_schema.keys:
                     if key_name in properties:
                         key_values[key_name] = properties.pop(key_name)
+                    else:
+                        missing_keys.append(key_name)
+                if missing_keys:
+                    _warn_missing_keys(type, tuple(sorted(missing_keys)))
+
+        # Whatever was not consumed as a key must not carry the native id along.
+        properties.pop(RESERVED_ID, None)
 
         return Node(
             type=type,

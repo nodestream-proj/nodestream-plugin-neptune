@@ -1,7 +1,9 @@
 - implementation: nodestream.pipeline.extractors:FileExtractor
   arguments:
-    globs:
-      - people/*.json
+    sources:
+      - type: local
+        globs:
+          - people/*.json
 
 - implementation: nodestream.interpreting:Interpreter
   arguments:

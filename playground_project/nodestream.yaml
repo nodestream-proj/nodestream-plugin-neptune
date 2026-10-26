@@ -9,7 +9,9 @@ targets:
     database: neptune
     mode: database
     host: https://<NEPTUNE_ENDPOINT>:<PORT>
+    region: <AWS_REGION>
   db-two:
     database: neptune
     mode: analytics
     graph_id: <GRAPH_IDENTIFIER>
+    region: <AWS_REGION>
