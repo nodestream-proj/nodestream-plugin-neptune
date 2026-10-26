@@ -1,0 +1,65 @@
+# Exercises every property value type the plugin can write to Neptune, on nodes
+# and on relationships, including edge cases (empty/unicode/special strings,
+# zero/negative/64-bit-boundary integers, scientific/near-limit floats, booleans,
+# null, a datetime).
+#
+# Neptune Database 1.4.6.3 supports Bool, Byte, Short, Int, Long, Float, Double,
+# DateTime and String. Values reach Neptune as openCypher parameters, so what
+# nodestream can distinguish is: str -> String, bool -> Bool, int -> Long,
+# float -> Double, datetime -> POSIX Double (the plugin converts it), None ->
+# property omitted. Byte/Short/Int/32-bit Float only exist via the bulk loader.
+#
+# Run it, then read the node back and compare with the values in types/a.json:
+#   nodestream run types --project nodestream.yaml --target <target>
+#   MATCH (n:TypeCheck {`~id`: ...}) / MATCH (n:TypeCheck) RETURN properties(n)
+#
+# Deliberately not covered (not supported by Neptune openCypher or by this
+# plugin): lists/maps as property values, NaN/Infinity, Date, Duration, Point.
+- implementation: nodestream.pipeline.extractors:FileExtractor
+  arguments:
+    sources:
+      - type: local
+        globs:
+          - types/*.json
+
+- implementation: nodestream.interpreting:Interpreter
+  arguments:
+    interpretations:
+      - type: source_node
+        node_type: TypeCheck
+        key:
+          id: !jmespath id
+        properties:
+          # Declared as a property too, so it survives (see key-only limitation).
+          id: !jmespath id
+          str_plain: !jmespath str_plain
+          str_unicode: !jmespath str_unicode
+          str_empty: !jmespath str_empty
+          str_special: !jmespath str_special
+          str_numeric: !jmespath str_numeric
+          int_zero: !jmespath int_zero
+          int_pos: !jmespath int_pos
+          int_neg: !jmespath int_neg
+          int_beyond_int32: !jmespath int_beyond_int32
+          int_long_max: !jmespath int_long_max
+          int_long_min: !jmespath int_long_min
+          float_plain: !jmespath float_plain
+          float_neg: !jmespath float_neg
+          float_whole: !jmespath float_whole
+          float_sci: !jmespath float_sci
+          float_big: !jmespath float_big
+          bool_true: !jmespath bool_true
+          bool_false: !jmespath bool_false
+          null_value: !jmespath null_value
+          # A YAML timestamp literal loads as a Python datetime.
+          datetime_value: 2024-03-15T12:30:45+00:00
+      - type: relationship
+        node_type: TypeCheck
+        relationship_type: TYPE_REF
+        node_key:
+          id: !jmespath ref_id
+        relationship_properties:
+          weight: !jmespath ref_weight
+          ratio: !jmespath ref_ratio
+          label: !jmespath ref_label
+          flag: !jmespath ref_flag

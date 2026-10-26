@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Playground `types` pipeline (`playground_project/types.yaml`) that writes every
+  value type the plugin can send to Neptune, on nodes and relationships, with
+  edge cases (empty, unicode and special-character strings, zero, negative and
+  64-bit-boundary integers, whole, scientific and near-limit floats, booleans,
+  null, and a datetime), so a target's stored values can be read back and
+  compared.
+
 ### Changed
 
 - Ported the `nodestream copy` surface to the nodestream 0.16.x `TypeRetriever`
@@ -29,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Neptune Analytics can now be used as a source for `nodestream copy`. Its
+  `execute_query` returns results only inside a streaming `payload`, which was
+  never read (and was closed by `execute()`), so every read looked empty: the
+  type histogram counted zero for every type, no extractors were built, and the
+  copy finished immediately with exit code 0 having copied nothing. The
+  payload is now decoded into `results`, matching Neptune Database.
 - The playground project's `test` pipeline failed to load ("Failed to Initialize
   Component in Declarative Pipeline") because it used the `FileExtractor`
   argument form removed in nodestream 0.13; it now uses `sources:`. The
