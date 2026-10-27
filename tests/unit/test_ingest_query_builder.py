@@ -95,6 +95,7 @@ SIMPLE_NODE_EXPECTED_QUERY = QueryBatch(
     [
         {
             "__node_id": "TestType_id:foo",
+            "id": "foo",
             **convert_timestamps(SIMPLE_NODE.properties),
         }
     ],
@@ -105,6 +106,7 @@ SIMPLE_NODE_EXPECTED_QUERY_ON_MATCH = QueryBatch(
     [
         {
             "__node_id": "TestType_id:foo",
+            "id": "foo",
             **convert_timestamps(SIMPLE_NODE.properties),
         }
     ],
@@ -122,6 +124,7 @@ COMPLEX_NODE_EXPECTED_QUERY = QueryBatch(
     [
         {
             "__node_id": "ComplexType_id:foo",
+            "id": "foo",
             **convert_timestamps(COMPLEX_NODE.properties),
         }
     ],
@@ -138,6 +141,8 @@ COMPLEX_NODE_TWO_EXPECTED_QUERY = QueryBatch(
     [
         {
             "__node_id": "ComplexType_id_part1:foo_id_part2:bar",
+            "id_part1": "foo",
+            "id_part2": "bar",
             **convert_timestamps(COMPLEX_NODE_TWO.properties),
         }
     ],
@@ -275,6 +280,8 @@ def test_node_update_with_label_excluded_from_id():
         [
             {
                 "__node_id": "id_part1:foo_id_part2:bar",
+                "id_part1": "foo",
+                "id_part2": "bar",
                 **convert_timestamps(COMPLEX_NODE_TWO.properties),
             }
         ],
@@ -602,3 +609,99 @@ def test_other_reserved_looking_names_still_flow_through_to_the_write():
     params = NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
     assert_that(params["~label"], equal_to("x"))
     assert_that(params["~type"], equal_to("y"))
+
+
+# Node key values are also written as properties. Identity stays in `~id`; the
+# key properties keep key-only values queryable and readable as a copy source.
+
+
+def test_key_only_node_writes_its_key_as_a_property():
+    node = Node("Number", PropertySet({"number": 42}))
+
+    params = NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
+
+    assert_that(params["__node_id"], equal_to("Number_number:42"))
+    assert_that(params["number"], equal_to(42))
+
+
+def test_every_part_of_a_composite_key_is_written_as_a_property():
+    node = Node(
+        "Person",
+        PropertySet({"first_name": "zach", "last_name": "probst"}),
+        PropertySet({"age": 30}),
+    )
+
+    params = NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
+
+    assert_that(
+        params["__node_id"], equal_to("Person_first_name:zach_last_name:probst")
+    )
+    assert_that(params["first_name"], equal_to("zach"))
+    assert_that(params["last_name"], equal_to("probst"))
+    assert_that(params["age"], equal_to(30))
+
+
+def test_declared_property_wins_over_a_normalized_key_of_the_same_name():
+    # Keys are lowercased by default; the declared property keeps the original
+    # value. Identity still uses the normalized key.
+    node = Node(
+        "Person",
+        PropertySet({"first_name": "zach"}),
+        PropertySet({"first_name": "Zach"}),
+    )
+
+    params = NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
+
+    assert_that(params["__node_id"], equal_to("Person_first_name:zach"))
+    assert_that(params["first_name"], equal_to("Zach"))
+
+
+def test_native_id_key_is_not_written_as_a_property():
+    # A copy schema can key on `~id`. It is already the node's identity and
+    # Neptune Database rejects `~id` as a property, so it is left out.
+    node = Node(
+        "Widget",
+        PropertySet({"~id": "Widget_sku:a-1"}),
+        PropertySet({"name": "w"}),
+    )
+
+    params = NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
+
+    assert_that("~id" in params, equal_to(False))
+    assert_that(params["__node_id"], equal_to("Widget_~id:Widget_sku:a-1"))
+    assert_that(params["name"], equal_to("w"))
+
+
+def test_key_values_go_through_value_conversion():
+    moment = datetime(2024, 3, 15, 12, 30, 45, tzinfo=timezone.utc)
+    node = Node("Event", PropertySet({"at": moment}))
+
+    params = NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
+
+    assert_that(params["at"], equal_to(moment.timestamp()))
+
+
+def test_writing_key_properties_does_not_mutate_the_node():
+    node = Node("Number", PropertySet({"number": 1}), PropertySet({"label": "one"}))
+
+    NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
+
+    assert_that(dict(node.properties), equal_to({"label": "one"}))
+    assert_that(dict(node.key_values), equal_to({"number": 1}))
+
+
+def test_relationship_endpoint_params_are_identity_only():
+    # Relationship queries only MATCH their endpoints, so endpoint key values are
+    # not sent there; the endpoint nodes get their key properties from their own
+    # node writes.
+    rel = RelationshipWithNodes(
+        from_node=Node("Person", PropertySet({"first_name": "a"})),
+        to_node=Node("Person", PropertySet({"first_name": "b"})),
+        relationship=Relationship("KNOWS"),
+    )
+
+    params = NeptuneIngestQueryBuilder().generate_update_rel_between_nodes_params(rel)
+
+    assert_that("first_name" in params, equal_to(False))
+    assert_that(params["__from_node_id"], equal_to("Person_first_name:a"))
+    assert_that(params["__to_node_id"], equal_to("Person_first_name:b"))

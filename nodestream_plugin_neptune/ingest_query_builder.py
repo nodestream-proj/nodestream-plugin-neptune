@@ -152,6 +152,17 @@ def _drop_reserved_properties(properties, context: str = None):
     return {k: v for k, v in properties.items() if k not in _RESERVED_PROPERTY_NAMES}
 
 
+def _key_values_as_properties(key_values) -> dict:
+    """Return a node's key values to also be written as properties.
+
+    A key named after a reserved id (a copy schema keyed on ``~id``) is left
+    out without a warning: it is the node's identity, already written as the
+    ``~id``, and Neptune Database rejects ``~id`` as a property. The input is
+    not mutated.
+    """
+    return {k: v for k, v in key_values.items() if k not in _RESERVED_PROPERTY_NAMES}
+
+
 # Values the plugin can send as parameters unchanged (plus ``None``). Datetimes
 # are converted to POSIX seconds; everything else is rejected, see below.
 _WRITABLE_SCALARS = (str, bool, int, float)
@@ -312,11 +323,21 @@ class NeptuneIngestQueryBuilder:
         return query
 
     def generate_update_node_operation_params(self, node: Node) -> dict:
-        """Generate the parameters for a query to update a node in the database."""
+        """Generate the parameters for a query to update a node in the database.
+
+        Node identity lives in the composite ``~id``, but key values are also
+        written as ordinary properties so they stay queryable (``MATCH (n:Person
+        {first_name: ...})``) and readable as a copy source, matching how
+        relationship keys are written here and how other nodestream writers
+        store keys. Declared properties win over key values of the same name,
+        so a property can keep the original value of a normalized (by default
+        lowercased) key. Identity is unaffected: it is still the ``~id``.
+        """
 
         context = f"node of type {node.type!r}"
         node_props = {
             **self.generate_node_key_params(node),
+            **_key_values_as_properties(node.key_values),
             **_drop_reserved_properties(node.properties, context),
         }
         node_props = _convert_unsupported_values(node_props, context=context)
