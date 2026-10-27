@@ -2,7 +2,7 @@ import math
 import numbers
 import re
 from datetime import datetime
-from functools import cache, wraps
+from functools import cache, lru_cache, wraps
 from logging import getLogger
 from typing import Iterable
 
@@ -110,6 +110,46 @@ def _make_relationship(rel_identity: RelationshipIdentityShape):
     )
 
     return match_rel_query
+
+
+# Property names that must never be written as properties. Neptune reserves
+# ``~id`` for the element id: Neptune Database rejects it in a ``SET`` map
+# ("'~id' as a property in SET clause is not supported") and the whole batch is
+# lost, while Neptune Analytics accepts it and stores a literal property named
+# ``~id``. Checked on both engines: every other ``~``-prefixed name (``~label``,
+# ``~type``, ``~start``, ``~end``, arbitrary ``~x``) is accepted as an ordinary
+# property, so only ``~id`` is stripped.
+_RESERVED_PROPERTY_NAMES = ("~id",)
+
+
+@lru_cache(maxsize=None)
+def _warn_reserved_property_dropped(name: str, context: str = None) -> None:
+    """Log, once per reserved name and context, that a property was dropped."""
+    where = f" on {context}" if context else ""
+    logger.warning(
+        "Dropping property %r%s: Neptune reserves it for the element id and "
+        "cannot write it as a property (Neptune Database rejects the write; "
+        "Neptune Analytics would store a literal property with that name).",
+        name,
+        where,
+    )
+
+
+def _drop_reserved_properties(properties, context: str = None):
+    """Return ``properties`` without names Neptune reserves (currently ``~id``).
+
+    Only PROPERTIES are sanitized; callers must not pass key values, which are
+    identity and are never altered. The input is not mutated. Copying from
+    Neptune already keeps ``~id`` out of properties; this is the backstop for
+    every other source and for user pipelines.
+    """
+    if not any(name in properties for name in _RESERVED_PROPERTY_NAMES):
+        return properties
+
+    for name in _RESERVED_PROPERTY_NAMES:
+        if name in properties:
+            _warn_reserved_property_dropped(name, context)
+    return {k: v for k, v in properties.items() if k not in _RESERVED_PROPERTY_NAMES}
 
 
 # Values the plugin can send as parameters unchanged (plus ``None``). Datetimes
@@ -274,10 +314,12 @@ class NeptuneIngestQueryBuilder:
     def generate_update_node_operation_params(self, node: Node) -> dict:
         """Generate the parameters for a query to update a node in the database."""
 
-        node_props = {**self.generate_node_key_params(node), **node.properties}
-        node_props = _convert_unsupported_values(
-            node_props, context=f"node of type {node.type!r}"
-        )
+        context = f"node of type {node.type!r}"
+        node_props = {
+            **self.generate_node_key_params(node),
+            **_drop_reserved_properties(node.properties, context),
+        }
+        node_props = _convert_unsupported_values(node_props, context=context)
 
         return node_props
 
@@ -331,9 +373,10 @@ class NeptuneIngestQueryBuilder:
     def generate_update_rel_params(self, rel: Relationship) -> dict:
         """Generate the parameters for a query to update a relationship in the database."""
 
+        context = f"relationship of type {rel.type!r}"
         return _convert_unsupported_values(
-            {**rel.key_values, **rel.properties},
-            context=f"relationship of type {rel.type!r}",
+            {**rel.key_values, **_drop_reserved_properties(rel.properties, context)},
+            context=context,
         )
 
     def generate_update_rel_between_nodes_params(

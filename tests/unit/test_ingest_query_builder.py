@@ -22,6 +22,8 @@ from nodestream.schema import GraphObjectType
 from nodestream_plugin_neptune.ingest_query_builder import (
     NeptuneIngestQueryBuilder,
     _convert_unsupported_values,
+    _drop_reserved_properties,
+    _warn_reserved_property_dropped,
 )
 from nodestream_plugin_neptune.query import Query, QueryBatch
 from pandas import Timestamp
@@ -496,3 +498,107 @@ def test_relationship_params_reject_unwritable_value_with_context():
     message = str(excinfo.value)
     assert_that("'since'" in message, equal_to(True))
     assert_that("relationship of type 'KNOWS'" in message, equal_to(True))
+
+
+# ──────── `~id` must never be sent as a property (PR #41 review) ─────────
+#
+# Neptune Database rejects `~id` in a SET map ("'~id' as a property in SET clause
+# is not supported") and the whole UNWIND batch is lost; Neptune Analytics accepts
+# it and stores a literal property named "~id". Copying FROM Neptune used to leak
+# the native id into node properties whenever the schema keyed on something else;
+# the mapper no longer does, and this is the write-side backstop for every other
+# source (and for user pipelines). Verified on both engines: `~id` is the only
+# reserved name that misbehaves. `~label`, `~type`, `~start`, `~end` and arbitrary
+# `~x` names are accepted as ordinary properties, so only `~id` is stripped.
+
+
+@pytest.fixture
+def fresh_reserved_warnings():
+    _warn_reserved_property_dropped.cache_clear()
+    yield
+    _warn_reserved_property_dropped.cache_clear()
+
+
+def test_drop_reserved_properties_removes_only_the_native_id():
+    props = {"~id": "src-1", "name": "Ada", "~label": "kept", "~custom": 1}
+
+    cleaned = _drop_reserved_properties(props, context="node of type 'Widget'")
+
+    assert_that(cleaned, equal_to({"name": "Ada", "~label": "kept", "~custom": 1}))
+    # The caller's mapping is not mutated.
+    assert_that("~id" in props, equal_to(True))
+
+
+def test_drop_reserved_properties_is_a_noop_without_reserved_names():
+    props = {"name": "Ada", "age": 36}
+    assert_that(_drop_reserved_properties(props), equal_to(props))
+
+
+def test_drop_reserved_properties_warns_once_per_name_and_context(
+    fresh_reserved_warnings, mocker
+):
+    import nodestream_plugin_neptune.ingest_query_builder as iqb
+
+    warn = mocker.patch.object(iqb.logger, "warning")
+    for _ in range(25):
+        _drop_reserved_properties({"~id": "x"}, context="node of type 'Widget'")
+    warn.assert_called_once()
+    logged = warn.call_args.args[0] % warn.call_args.args[1:]
+    assert_that("'~id'" in logged, equal_to(True))
+    assert_that("node of type 'Widget'" in logged, equal_to(True))
+
+    # A different type is a different situation and is reported again.
+    _drop_reserved_properties({"~id": "x"}, context="node of type 'Gadget'")
+    assert_that(warn.call_count, equal_to(2))
+
+
+def test_node_params_never_carry_the_native_id_as_a_property():
+    node = Node(
+        "Widget",
+        PropertySet({"sku": "a-1"}),
+        PropertySet({"~id": "src-native-id", "age": 36}),
+    )
+
+    params = NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
+
+    assert_that("~id" in params, equal_to(False))
+    # Identity comes from the key, untouched by the strip.
+    assert_that(params["__node_id"], equal_to("Widget_sku:a-1"))
+    assert_that(params["age"], equal_to(36))
+
+
+def test_relationship_params_never_carry_the_native_id_as_a_property():
+    rel = Relationship(
+        "KNOWS", properties=PropertySet({"~id": "src-edge-1", "since": 2020})
+    )
+
+    params = NeptuneIngestQueryBuilder().generate_update_rel_params(rel)
+
+    assert_that("~id" in params, equal_to(False))
+    assert_that(params["since"], equal_to(2020))
+
+
+def test_relationship_key_values_are_never_stripped():
+    # Only PROPERTIES are sanitized. Key values are identity: removing one would
+    # silently change what the MERGE matches on.
+    rel = Relationship(
+        "KNOWS",
+        key_values=PropertySet({"~id": "edge-key"}),
+        properties=PropertySet({"~id": "ignored", "since": 2020}),
+    )
+
+    params = NeptuneIngestQueryBuilder().generate_update_rel_params(rel)
+
+    assert_that(params["~id"], equal_to("edge-key"))
+    assert_that(params["since"], equal_to(2020))
+
+
+def test_other_reserved_looking_names_still_flow_through_to_the_write():
+    node = Node(
+        "Widget",
+        PropertySet({"sku": "a-1"}),
+        PropertySet({"~label": "x", "~type": "y"}),
+    )
+    params = NeptuneIngestQueryBuilder().generate_update_node_operation_params(node)
+    assert_that(params["~label"], equal_to("x"))
+    assert_that(params["~type"], equal_to("y"))
