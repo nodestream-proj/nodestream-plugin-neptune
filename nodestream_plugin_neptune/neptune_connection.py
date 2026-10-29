@@ -234,12 +234,32 @@ class NeptuneAnalyticsConnection(NeptuneConnection):
             },
         )
 
-        return await client.execute_query(
+        response = await client.execute_query(
             graphIdentifier=self.graph_id,
             queryString=query_stmt,
             language="OPEN_CYPHER",
             parameters=parameters,
         )
+        return await self._decode_payload(response)
+
+    @staticmethod
+    async def _decode_payload(response):
+        """Expose the query results of a Neptune Analytics response as `results`.
+
+        Unlike Neptune Database, Neptune Analytics returns the result set only
+        inside a streaming `payload` (a JSON document of the form
+        `{"results": [...]}`). Readers such as the type retriever and the
+        extractors expect `response["results"]`, so the stream is read and
+        decoded here, before `NeptuneConnection.execute` closes it.
+        """
+        if not isinstance(response, dict) or "results" in response:
+            return response
+        payload = response.get("payload")
+        if payload is None:
+            return response
+        body = await payload.read()
+        response["results"] = json.loads(body).get("results", []) if body else []
+        return response
 
     def _get_retryable_exceptions(self, client):
         return (client.exceptions.ConflictException,)
